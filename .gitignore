@@ -1,0 +1,4 @@
+/out
+/generated
+/cache
+*.env

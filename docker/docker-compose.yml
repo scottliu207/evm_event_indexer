@@ -1,0 +1,14 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: evm-event-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      # MYSQL_DATABASE: event_db
+    ports:
+      - "3306:3306"
+    volumes:
+      # 將 schema 目錄掛載到 MySQL 預設的 init 目錄
+      # 官方 entrypoint 會在第一次啟動時自動執行裡面的 *.sql
+      - ./db/schema:/docker-entrypoint-initdb.d:ro

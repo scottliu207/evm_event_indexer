@@ -32,16 +32,16 @@ func Test_Deploy(t *testing.T) {
 
 	defer client.Close()
 
-	inboxService := erc20.NewERC20Service(client, priv)
+	erc20Service := erc20.NewERC20Service(client, priv)
 
-	res, err := inboxService.Deploy()
+	res, err := erc20Service.Deploy()
 	if err != nil {
 		t.Fatalf("deploy failed: %v", err)
 	}
 
-	log.Printf("deployed at: %s", res.Address)
+	log.Printf("contract address: %s", res.Address)
 
-	balance, err := inboxService.GetBalance(ctx, res.Address)
+	balance, err := erc20Service.GetBalance(ctx, res.Address)
 	if err != nil {
 		t.Fatalf("get balance failed: %v", err)
 	}
@@ -49,7 +49,7 @@ func Test_Deploy(t *testing.T) {
 
 }
 
-func Test_GetAndSet(t *testing.T) {
+func Test_Transfer(t *testing.T) {
 	if err := godotenv.Load("../../.env"); err != nil {
 		panic(err)
 	}
@@ -68,23 +68,24 @@ func Test_GetAndSet(t *testing.T) {
 
 	defer client.Close()
 
-	inboxService := erc20.NewERC20Service(client, priv)
+	erc20Service := erc20.NewERC20Service(client, priv)
 
-	balance, err := inboxService.GetBalance(ctx, common.HexToAddress(addr))
+	balance, err := erc20Service.GetBalance(ctx, common.HexToAddress(addr))
 	if err != nil {
 		t.Fatalf("get balance failed: %v", err)
 	}
 	log.Printf("balance: %s", balance)
 
-	tx, err := inboxService.Transfer(ctx, common.HexToAddress(addr), big.NewInt(1))
+	tx, err := erc20Service.Transfer(ctx, common.HexToAddress(addr), big.NewInt(3))
 	if err != nil {
 		t.Fatalf("transfer failed: %v", err)
 	}
 	log.Printf("tx: %s", tx.Hash())
 
-	balance, err = inboxService.GetBalance(ctx, common.HexToAddress(addr))
+	balance, err = erc20Service.GetBalance(ctx, common.HexToAddress(addr))
 	if err != nil {
 		t.Fatalf("get balance failed: %v", err)
 	}
 	log.Printf("after transfer: %s", balance)
+
 }

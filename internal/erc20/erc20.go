@@ -5,7 +5,6 @@ import (
 	erc20 "evm_event_indexer/generated"
 	internalEth "evm_event_indexer/internal/eth"
 	"fmt"
-	"log"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -44,8 +43,6 @@ func (i *ERC20Service) Deploy() (*DeployResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("deploy failed: %w", err)
 	}
-
-	log.Printf("deployed: %s", tx.Hash())
 
 	return &DeployResult{
 		Address: addr,

@@ -65,3 +65,7 @@ func (i Client) GetLogs(params GetLogsParams) ([]types.Log, error) {
 		Topics:    params.Topics,
 	})
 }
+
+func (i Client) Subscribe(headers chan<- *types.Header) (ethereum.Subscription, error) {
+	return i.Client.SubscribeNewHead(i.ctx, headers)
+}

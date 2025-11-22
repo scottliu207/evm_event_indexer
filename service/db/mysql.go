@@ -20,8 +20,8 @@ const EVENT_DB = "event_db"
 const MAX_OPEN_CONNS = 10
 const MAX_IDLE_CONNS = 10
 const CONN_MAX_LIFE_TIME = time.Minute * 5
-const RETRY = 3
-const WAIT_DURATION = time.Second * 5
+const RETRY = 10
+const WAIT_DURATION = time.Second * 10
 const TIMEOUT = time.Second * 30
 
 type mysql struct {
@@ -97,10 +97,11 @@ func initMysql(dbName string) (*sql.DB, error) {
 			break
 		}
 		slog.Warn(
-			"連線 mysql 失敗",
+			"failed to connect to mysql",
 			slog.Any("DB Name", dbName),
 			slog.Any("err", err),
-			slog.Any("等待重試", WAIT_DURATION.String()),
+			slog.Any("waiting for retry", WAIT_DURATION.String()),
+			slog.Any("retry", i),
 		)
 		time.Sleep(WAIT_DURATION)
 	}

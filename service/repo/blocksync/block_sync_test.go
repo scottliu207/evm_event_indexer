@@ -17,12 +17,12 @@ import (
 
 var ctx = context.TODO()
 
-func Test_TxUpsertBlockSync(t *testing.T) {
+func Test_TxUpsertBlock(t *testing.T) {
 	mysql := db.GetMysql(db.EVENT_DB)
 
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 	err := utils.NewTx(mysql).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		return blocksync.TxUpsertBlockSync(ctx, tx, &model.BlockSync{
+		return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 			Address:                addr,
 			LastSyncNumber:         10,
 			LastSyncTimestamp:      time.Now(),

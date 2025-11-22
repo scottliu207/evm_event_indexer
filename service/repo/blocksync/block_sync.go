@@ -8,7 +8,7 @@ import (
 )
 
 // Upsert block sync status into db
-func TxUpsertBlockSync(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) error {
+func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) error {
 
 	var sql strings.Builder
 	var params []any

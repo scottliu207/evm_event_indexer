@@ -2,6 +2,7 @@ package main
 
 import (
 	"evm_event_indexer/background"
+	"os"
 
 	"github.com/joho/godotenv"
 )
@@ -16,7 +17,6 @@ func main() {
 		panic(err)
 	}
 
-	// Get logs
-	background.GetLogs(CONTRACT_ADDRESS)
-
+	go background.Subscription()
+	background.LogScanner(os.Getenv("CONTRACT_ADDRESS"))
 }

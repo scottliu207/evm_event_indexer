@@ -21,11 +21,12 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	sql.WriteString("	`log_index`, ")
 	sql.WriteString("	`tx_hash`, ")
 	sql.WriteString("	`data`, ")
-	sql.WriteString("	`block_timestamp` ")
+	sql.WriteString("	`block_timestamp`, ")
+	sql.WriteString("	`created_at` ")
 	sql.WriteString(" ) VALUES ")
 
 	for i, v := range log {
-		placeholder[i] = " (?,?,?,?,?,?,?,?,?) "
+		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?) "
 		params = append(params, v.Address)
 		params = append(params, v.BlockHash)
 		params = append(params, v.BlockNumber)
@@ -35,7 +36,9 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 		params = append(params, v.TxHash)
 		params = append(params, v.Data)
 		params = append(params, v.BlockTimestamp)
+		params = append(params, v.CreatedAt)
 	}
+
 	sql.WriteString(strings.Join(placeholder, ","))
 
 	sql.WriteString(" ON DUPLICATE KEY UPDATE")

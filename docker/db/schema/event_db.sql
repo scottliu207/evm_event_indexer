@@ -12,8 +12,9 @@ CREATE TABLE `event_db`.`event_log` (
   `tx_index` bigint unsigned NOT NULL COMMENT 'tx index',
   `log_index` bigint unsigned NOT NULL COMMENT 'log index',
   `data` blob COMMENT 'data',
-  `block_timestamp` timestamp NOT NULL COMMENT 'block timestamp',
   `topics` json NOT NULL COMMENT 'topics',
+  `block_timestamp` timestamp NOT NULL COMMENT 'block timestamp',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created at',
   PRIMARY KEY (`id`),
   UNIQUE KEY (`block_number`, `tx_index`, `log_index`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='event log';

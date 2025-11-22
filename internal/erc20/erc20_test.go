@@ -25,7 +25,7 @@ func Test_Deploy(t *testing.T) {
 		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
 	}
 
-	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC"))
+	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC_HTTP"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,14 +54,14 @@ func Test_Transfer(t *testing.T) {
 		panic(err)
 	}
 
-	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+	addr := os.Getenv("CONTRACT_ADDRESS")
 
 	priv := os.Getenv("PRIVATE_KEY")
 	if priv == "" {
 		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
 	}
 
-	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC"))
+	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC_HTTP"))
 	if err != nil {
 		t.Fatal(err)
 	}

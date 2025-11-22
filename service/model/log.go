@@ -18,6 +18,7 @@ type (
 		TxHash         string
 		Data           []byte
 		BlockTimestamp time.Time
+		CreatedAt      time.Time
 	}
 
 	Topics []string

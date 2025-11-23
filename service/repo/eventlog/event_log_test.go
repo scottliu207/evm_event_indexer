@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,12 +29,18 @@ func Test_TxInsertLog(t *testing.T) {
 				"0x123",
 				"0x456",
 			},
-			TxIndex:        0,
-			LogIndex:       0,
+			TxIndex:        1,
+			LogIndex:       2,
 			TxHash:         common.Hash{}.String(),
-			Data:           []byte{},
+			Data:           []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			BlockTimestamp: time.Now(),
+			CreatedAt:      time.Now(),
 		})
 	})
 	assert.NoError(t, err)
+
+	log, err := eventlog.GetEventLog(ctx, mysql, 35)
+	spew.Dump(log)
+	assert.NoError(t, err)
+	assert.Equal(t, addr, log.Address)
 }

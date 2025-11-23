@@ -18,5 +18,7 @@ func main() {
 	}
 
 	go background.Subscription()
+	go background.ReorgConsumer()
+
 	background.LogScanner(os.Getenv("CONTRACT_ADDRESS"))
 }

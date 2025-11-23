@@ -52,7 +52,7 @@ func LogScanner(address string) {
 	addresses := []common.Address{common.HexToAddress(address)}
 
 	// TODO: get last block from db
-	lastBlock := uint64(0)
+	syncBlock := uint64(0)
 	size := uint64(100)
 
 	ticker := time.NewTicker(scanInterval)
@@ -66,7 +66,7 @@ func LogScanner(address string) {
 			break
 		}
 
-		blockSync, err := blocksync.GetBlockSync(context.Background(), db.GetMysql(db.EVENT_DB), address)
+		bc, err := blocksync.GetBlockSync(context.Background(), db.GetMysql(db.EVENT_DB), address)
 		if err != nil {
 			slog.Error("get block sync status error",
 				slog.Any("err", err),
@@ -77,15 +77,39 @@ func LogScanner(address string) {
 			continue
 		}
 
-		if blockSync == nil {
-			blockSync = new(model.BlockSync)
+		if bc == nil {
+			bc = new(model.BlockSync)
 		}
 
-		lastBlock = blockSync.LastSyncNumber + 1
+		// if there is no sync block, start from 0
+		if bc.LastSyncNumber > 0 {
+			syncBlock = bc.LastSyncNumber + 1
+		}
+
+		latestBlock, err := client.GetBlockNumber()
+		if err != nil {
+			slog.Error("get current block number error",
+				slog.Any("err", err),
+				slog.Any("retry", retry),
+			)
+			retry++
+			time.Sleep(time.Second * 5)
+			continue
+		}
+
+		toBlock := min(syncBlock+size, latestBlock)
+		if syncBlock > toBlock {
+			slog.Info("no new blocks to scan",
+				slog.Any("lastSyncNumber", bc.LastSyncNumber),
+				slog.Any("latestBlock", latestBlock),
+			)
+			retry = 0
+			continue
+		}
 
 		eventLogs, err := client.GetLogs(internalEth.GetLogsParams{
-			FromBlock: lastBlock,
-			ToBlock:   lastBlock + size,
+			FromBlock: syncBlock,
+			ToBlock:   toBlock,
 			Addresses: addresses,
 			Topics:    topics,
 		})
@@ -99,14 +123,26 @@ func LogScanner(address string) {
 			continue
 		}
 
+		header, err := client.HeaderByNumber(toBlock)
+		if err != nil {
+			slog.Error("get block header error",
+				slog.Any("blockNumber", toBlock),
+				slog.Any("err", err),
+			)
+			retry++
+			time.Sleep(time.Second * 5)
+			continue
+		}
+
+		newSyncNumber := toBlock
+		newSyncHash := header.Hash().Hex()
+
 		slog.Info("event logs info",
-			slog.Any("lastSyncNumber", lastBlock),
-			slog.Any("fromBlock", lastBlock),
-			slog.Any("toBlock", lastBlock+size),
+			slog.Any("lastSyncNumber", syncBlock),
+			slog.Any("toBlock", toBlock),
 			slog.Any("total logs count", len(eventLogs)),
 		)
 
-		newLastBlock := lastBlock
 		logs := make([]*model.Log, len(eventLogs))
 		for i, v := range eventLogs {
 
@@ -128,7 +164,9 @@ func LogScanner(address string) {
 				CreatedAt:      now,
 			}
 
-			newLastBlock = v.BlockNumber
+			slog.Info("event log info",
+				slog.Any("log", v),
+			)
 		}
 
 		if err := utils.NewTx(db.GetMysql(db.EVENT_DB)).Exec(ctx,
@@ -140,12 +178,10 @@ func LogScanner(address string) {
 			},
 			func(ctx context.Context, tx *sql.Tx) error {
 				return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-					Address:                address,
-					LastSyncNumber:         lastBlock + uint64(len(eventLogs)-1),
-					LastSyncTimestamp:      now,
-					LastFinalizedNumber:    lastBlock + uint64(len(eventLogs)-1),
-					LastFinalizedTimestamp: now,
-					UpdatedAt:              now,
+					Address:        address,
+					LastSyncNumber: newSyncNumber,
+					LastSyncHash:   newSyncHash,
+					UpdatedAt:      now,
 				})
 			},
 		); err != nil {
@@ -158,7 +194,7 @@ func LogScanner(address string) {
 			continue
 		}
 
-		lastBlock = newLastBlock
-
+		// reset retry
+		retry = 0
 	}
 }

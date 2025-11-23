@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,12 +24,10 @@ func Test_TxUpsertBlock(t *testing.T) {
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 	err := utils.NewTx(mysql).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-			Address:                addr,
-			LastSyncNumber:         10,
-			LastSyncTimestamp:      time.Now(),
-			LastFinalizedNumber:    1,
-			LastFinalizedTimestamp: time.Now(),
-			UpdatedAt:              time.Now(),
+			Address:        addr,
+			LastSyncNumber: 10,
+			LastSyncHash:   common.Address{}.Hex(),
+			UpdatedAt:      time.Now(),
 		})
 	})
 	assert.NoError(t, err)
@@ -37,5 +36,5 @@ func Test_TxUpsertBlock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, addr, res.Address)
 	assert.Equal(t, uint64(10), res.LastSyncNumber)
-	assert.Equal(t, uint64(1), res.LastFinalizedNumber)
+	assert.Equal(t, common.Address{}.Hex(), res.LastSyncHash)
 }

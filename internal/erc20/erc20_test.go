@@ -76,7 +76,7 @@ func Test_Transfer(t *testing.T) {
 	}
 	log.Printf("balance: %s", balance)
 
-	tx, err := erc20Service.Transfer(ctx, common.HexToAddress(addr), big.NewInt(3))
+	tx, err := erc20Service.Transfer(ctx, common.HexToAddress(addr), big.NewInt(1))
 	if err != nil {
 		t.Fatalf("transfer failed: %v", err)
 	}

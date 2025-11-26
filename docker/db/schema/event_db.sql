@@ -16,7 +16,7 @@ CREATE TABLE `event_db`.`event_log` (
   `block_timestamp` timestamp NOT NULL COMMENT 'block timestamp',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created at',
   PRIMARY KEY (`id`),
-  UNIQUE KEY (`block_number`, `tx_index`, `log_index`)
+  UNIQUE KEY (`address`, `block_number`, `tx_index`, `log_index`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='event log';
 
 -- block syncranization status
@@ -27,7 +27,6 @@ CREATE TABLE `event_db`.`block_sync` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'updated at',
   PRIMARY KEY (`address`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='block syncranization status';
-
 
 -- eth event detail
 CREATE TABLE `event_db`.`evm_event_detail` (

@@ -2,25 +2,22 @@ package background
 
 import (
 	"context"
+	internalCnf "evm_event_indexer/internal/config"
 	internalEth "evm_event_indexer/internal/eth"
-	"evm_event_indexer/service/db"
+	internalStorage "evm_event_indexer/internal/storage"
+
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
 	"fmt"
 	"log/slog"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-const BACKOFF = time.Second
-const MAX_BACKOFF = time.Second * 30
-
 func Subscription() {
-	backoff := BACKOFF
+	backoff := internalCnf.Get().Backoff
 
 	for {
 
@@ -28,7 +25,7 @@ func Subscription() {
 			ctx := context.Background()
 
 			headers := make(chan *types.Header)
-			client, err := internalEth.NewClient(ctx, os.Getenv("ETH_RPC_WS"))
+			client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcWS)
 			if err != nil {
 				return err
 			}
@@ -51,10 +48,10 @@ func Subscription() {
 		if err != nil {
 			slog.Error("subscription error", slog.Any("err", err))
 			time.Sleep(backoff)
-			backoff = min(backoff*2, MAX_BACKOFF)
+			backoff = min(backoff*2, internalCnf.Get().MaxBackoff)
 			continue
 		}
-		backoff = BACKOFF
+		backoff = internalCnf.Get().Backoff
 	}
 
 }
@@ -75,7 +72,7 @@ func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
 			// get last sync block number
-			bc, err := blocksync.GetBlockSync(ctx, db.GetMysql(db.EVENT_DB), os.Getenv("CONTRACT_ADDRESS"))
+			bc, err := blocksync.GetBlockSync(ctx, internalStorage.GetMysql(internalCnf.Get().EventDB), internalCnf.Get().ContractAddress)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)
@@ -86,24 +83,23 @@ func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *
 			}
 
 			// if parent hash is the same as last sync hash, no reorg happened
-			if bc.LastSyncHash == "" || header.ParentHash.String() == bc.LastSyncHash {
+			if header.ParentHash.String() == bc.LastSyncHash {
 				continue
 			}
 
-			reorgWindowInt, err := strconv.Atoi(os.Getenv("REORG_WINDOW"))
-			if err != nil {
-				panic(err)
-			}
-
-			reorgWindow := uint64(reorgWindowInt)
+			reorgWindow := uint64(internalCnf.Get().ReorgWindow)
 
 			slog.Info("reorg happened", slog.Any("block number", header.Number), slog.Any("last sync number", bc.LastSyncNumber))
 			rollbackHeight := uint64(0)
 			if bc.LastSyncNumber > reorgWindow {
 				rollbackHeight = bc.LastSyncNumber - reorgWindow
 			}
-			ReorgProducer(rollbackHeight)
-		}
 
+			ReorgProducer(&reorgMsg{
+				RollbackNumber: rollbackHeight,
+				Backoff:        internalCnf.Get().Backoff,
+				Retry:          0,
+			})
+		}
 	}
 }

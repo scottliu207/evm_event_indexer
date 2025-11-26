@@ -3,7 +3,8 @@ package blocksync_test
 import (
 	"context"
 	"database/sql"
-	"evm_event_indexer/service/db"
+	internalCnf "evm_event_indexer/internal/config"
+	internalStorage "evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 
 	"evm_event_indexer/service/repo/blocksync"
@@ -19,10 +20,11 @@ import (
 var ctx = context.TODO()
 
 func Test_TxUpsertBlock(t *testing.T) {
-	mysql := db.GetMysql(db.EVENT_DB)
+	cnf := internalCnf.Get()
+	db := internalStorage.GetMysql(cnf.EventDB)
 
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-	err := utils.NewTx(mysql).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
+	err := utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 			Address:        addr,
 			LastSyncNumber: 10,
@@ -32,7 +34,7 @@ func Test_TxUpsertBlock(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	res, err := blocksync.GetBlockSync(ctx, db.GetMysql(db.EVENT_DB), addr)
+	res, err := blocksync.GetBlockSync(ctx, db, addr)
 	assert.NoError(t, err)
 	assert.Equal(t, addr, res.Address)
 	assert.Equal(t, uint64(10), res.LastSyncNumber)

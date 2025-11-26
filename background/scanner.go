@@ -3,36 +3,29 @@ package background
 import (
 	"context"
 	"database/sql"
+	internalCnf "evm_event_indexer/internal/config"
 	internalEth "evm_event_indexer/internal/eth"
-	"evm_event_indexer/service/db"
+	internalStorage "evm_event_indexer/internal/storage"
+
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
 	"evm_event_indexer/service/repo/eventlog"
 	"evm_event_indexer/utils"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-const RETRY = 10
 const ERC20_TRANSFER_EVENT = "Transfer(address,address,uint256)"
 const ERC20_APPROVAL_EVENT = "Approval(address,address,uint256)"
 
-// TODO: make it configurable
-// TODO: reorg
 func LogScanner(address string) {
-
-	scanInterval, err := time.ParseDuration(os.Getenv("LOG_SCANNER_INTERVAL"))
-	if err != nil {
-		panic(err)
-	}
 
 	ctx := context.Background()
 
-	client, err := internalEth.NewClient(ctx, os.Getenv("ETH_RPC_HTTP"))
+	client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {
 		panic(err)
 	}
@@ -51,22 +44,23 @@ func LogScanner(address string) {
 
 	addresses := []common.Address{common.HexToAddress(address)}
 
-	// TODO: get last block from db
 	syncBlock := uint64(0)
 	size := uint64(100)
 
-	ticker := time.NewTicker(scanInterval)
+	ticker := time.NewTicker(internalCnf.Get().LogScannerInterval)
+	defer ticker.Stop()
+
 	retry := 0
 	for range ticker.C {
 
 		now := time.Now()
 
-		if retry > RETRY {
+		if retry > internalCnf.Get().Retry {
 			slog.Error("get logs error, exceed retry limit")
 			break
 		}
 
-		bc, err := blocksync.GetBlockSync(context.Background(), db.GetMysql(db.EVENT_DB), address)
+		bc, err := blocksync.GetBlockSync(context.Background(), internalStorage.GetMysql(internalCnf.Get().EventDB), address)
 		if err != nil {
 			slog.Error("get block sync status error",
 				slog.Any("err", err),
@@ -169,7 +163,7 @@ func LogScanner(address string) {
 			)
 		}
 
-		if err := utils.NewTx(db.GetMysql(db.EVENT_DB)).Exec(ctx,
+		if err := utils.NewTx(internalStorage.GetMysql(internalCnf.Get().EventDB)).Exec(ctx,
 			func(ctx context.Context, tx *sql.Tx) error {
 				if len(logs) == 0 {
 					return nil
@@ -197,4 +191,5 @@ func LogScanner(address string) {
 		// reset retry
 		retry = 0
 	}
+
 }

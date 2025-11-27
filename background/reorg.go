@@ -17,9 +17,10 @@ import (
 )
 
 type reorgMsg struct {
-	RollbackNumber uint64
-	Backoff        time.Duration
-	Retry          int
+	ContractAddress string
+	RollbackNumber  uint64
+	Backoff         time.Duration
+	Retry           int
 }
 
 var reorgChan = make(chan *reorgMsg, 1000)
@@ -33,7 +34,7 @@ func ReorgConsumer() {
 			continue
 		}
 
-		if err := reorgHandler(msg.RollbackNumber); err != nil {
+		if err := reorgHandler(msg.RollbackNumber, msg.ContractAddress); err != nil {
 			slog.Error("failed to handle reorg", slog.Any("err", err))
 
 			// backoff
@@ -64,28 +65,11 @@ func ReorgProducer(msg *reorgMsg) {
 	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func reorgHandler(rollbackNumber uint64) error {
+func reorgHandler(rollbackNumber uint64, address string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), internalCnf.Get().Timeout)
 	defer cancel()
 
 	// lock by address
-
-	now := time.Now()
-
-	// get the last block number
-	blockSync, err := blocksync.GetBlockSync(ctx, internalStorage.GetMysql(internalCnf.Get().EventDB), internalCnf.Get().ContractAddress)
-	if err != nil {
-		return fmt.Errorf("failed to get last sync data: %w", err)
-	}
-
-	if blockSync == nil {
-		blockSync = new(model.BlockSync)
-	}
-
-	prev := uint64(0)
-	if rollbackNumber > 0 {
-		prev = rollbackNumber - 1
-	}
 
 	client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {
@@ -93,24 +77,27 @@ func reorgHandler(rollbackNumber uint64) error {
 	}
 	defer client.Close()
 
-	// get the previous block header
-	header, err := client.HeaderByNumber(prev)
+	rollbackSyncNumber := uint64(0)
+	if rollbackNumber > 0 {
+		rollbackSyncNumber = rollbackNumber - 1
+	}
+
+	header, err := client.GetHeaderByNumber(rollbackSyncNumber)
 	if err != nil {
 		return fmt.Errorf("failed to get header: %w", err)
 	}
 
-	rollbackHash := header.Hash().String()
+	now := time.Now()
 
 	err = utils.NewTx(internalStorage.GetMysql(internalCnf.Get().EventDB)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, internalCnf.Get().ContractAddress, rollbackNumber)
+			return eventlog.TxDeleteLog(ctx, tx, address, rollbackNumber)
 		},
 		func(ctx context.Context, tx *sql.Tx) error {
-
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				Address:        internalCnf.Get().ContractAddress,
-				LastSyncNumber: prev,
-				LastSyncHash:   rollbackHash,
+				Address:        address,
+				LastSyncNumber: rollbackSyncNumber,
+				LastSyncHash:   header.Hash().String(),
 				UpdatedAt:      now,
 			})
 		},

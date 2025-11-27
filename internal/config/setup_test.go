@@ -6,6 +6,6 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	config.LoadConfig()
+	config.LoadConfig("../../config/config.yaml")
 	t.Log(config.Get())
 }

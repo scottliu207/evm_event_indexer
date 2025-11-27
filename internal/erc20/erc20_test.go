@@ -16,16 +16,13 @@ import (
 var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
-	internalCnf.LoadConfig()
+	internalCnf.LoadConfig("../../config/config.yaml")
 	os.Exit(m.Run())
 }
 
 func Test_Deploy(t *testing.T) {
 
-	priv := internalCnf.Get().PrivateKey
-	if priv == "" {
-		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
-	}
+	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 	client, err := eth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {
@@ -53,11 +50,8 @@ func Test_Deploy(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 
-	addr := internalCnf.Get().ContractAddress
-	priv := internalCnf.Get().PrivateKey
-	if priv == "" {
-		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
-	}
+	addr := internalCnf.Get().ContractsAddress[0]
+	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 	client, err := eth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {

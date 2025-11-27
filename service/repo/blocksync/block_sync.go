@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"evm_event_indexer/service/model"
+	"fmt"
 	"strings"
 )
 
@@ -63,6 +64,52 @@ func GetBlockSync(ctx context.Context, db *sql.DB, address string) (res *model.B
 		); err != nil {
 			return nil, err
 		}
+	}
+
+	return res, nil
+}
+
+func GetBlockSyncMap(ctx context.Context, db *sql.DB, addresses []string) (res map[string]*model.BlockSync, err error) {
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("addresses can not be empty")
+	}
+
+	var sql strings.Builder
+	var params []any
+	sql.WriteString(" SELECT ")
+	sql.WriteString("  `address`, ")
+	sql.WriteString("  `last_sync_number`, ")
+	sql.WriteString("  `last_sync_hash`, ")
+	sql.WriteString("  `updated_at` ")
+	sql.WriteString(" FROM `event_db`.`block_sync` ")
+	sql.WriteString(" WHERE ")
+	sql.WriteString("  `address` IN ( ?")
+	for i, v := range addresses {
+		if i > 0 {
+			sql.WriteString(", ?")
+		}
+		params = append(params, v)
+	}
+	sql.WriteString(")")
+
+	row, err := db.QueryContext(ctx, sql.String(), params...)
+	if err != nil {
+		return nil, err
+	}
+	defer row.Close()
+
+	res = make(map[string]*model.BlockSync)
+	for row.Next() {
+		bs := new(model.BlockSync)
+		if err := row.Scan(
+			&bs.Address,
+			&bs.LastSyncNumber,
+			&bs.LastSyncHash,
+			&bs.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		res[bs.Address] = bs
 	}
 
 	return res, nil

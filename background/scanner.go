@@ -29,7 +29,7 @@ const (
 // It automatically retries with exponential backoff when the scanner stops unexpectedly.
 func LogScanner(address string) {
 	ctx := context.Background()
-	backoff := internalCnf.Get().Backoff
+
 	for {
 		err := func() error {
 			client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
@@ -44,13 +44,11 @@ func LogScanner(address string) {
 		if err != nil {
 			slog.Error("scanner error occurred, waiting to retry",
 				slog.Any("err", err),
-				slog.String("address", address),
+				slog.Any("address", address),
+				slog.Any("retry_delay", internalCnf.Get().MaxBackoff),
 			)
+			time.Sleep(internalCnf.Get().MaxBackoff)
 		}
-
-		backoff = min(backoff*2, internalCnf.Get().MaxBackoff)
-		slog.Info("waiting to retry", slog.Duration("duration", backoff))
-		time.Sleep(backoff)
 	}
 }
 

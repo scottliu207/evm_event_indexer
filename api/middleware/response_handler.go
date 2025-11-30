@@ -28,6 +28,7 @@ func ResponseHandler() gin.HandlerFunc {
 		if last == nil {
 			res.Code = 0
 			res.Message = "success"
+			// return empty object when result is nil to maintain consistent JSON structure
 			if res.Result == nil {
 				res.Result = struct{}{}
 			}

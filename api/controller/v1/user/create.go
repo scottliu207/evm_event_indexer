@@ -20,16 +20,16 @@ import (
 
 type (
 	CreateUserReq struct {
-		Account  string `json:"Account" binding:"required,min=3,max=20"`
-		Password string `json:"Password" binding:"required,min=8"`
+		Account  string `json:"account" binding:"required,min=3,max=20"`
+		Password string `json:"password" binding:"required,min=8"`
 	}
 
 	CreateUserRes struct {
-		ID        int64           `json:"ID"`
-		Account   string          `json:"Account"`
-		Role      enum.UserRole   `json:"Role"`
-		Status    enum.UserStatus `json:"Status"`
-		CreatedAt time.Time       `json:"CreatedAt"`
+		ID        int64           `json:"id"`
+		Account   string          `json:"account"`
+		Role      enum.UserRole   `json:"role"`
+		Status    enum.UserStatus `json:"status"`
+		CreatedAt time.Time       `json:"created_at"`
 	}
 )
 

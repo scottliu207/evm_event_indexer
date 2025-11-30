@@ -76,7 +76,6 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 	sql.WriteString("  `auth_meta`, ")
 	sql.WriteString("  `created_at`, ")
 	sql.WriteString("  `updated_at` ")
-	sql.WriteString("  `updated_at` ")
 	sql.WriteString(" FROM `account_db`.`user` ")
 	sql.WriteString(" WHERE ")
 

@@ -1,8 +1,8 @@
 package protocol
 
-// Response : api 回應格式
+// API response format
 type Response struct {
-	Code    int    `json:"Code"`
-	Message string `json:"Message"`
-	Result  any    `json:"Result"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Result  any    `json:"result"`
 }

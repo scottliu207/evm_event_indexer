@@ -1,0 +1,39 @@
+#
+contracts_address:
+  - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+eth_rpc_http: "http://127.0.0.1:8545"
+eth_rpc_ws: "ws://127.0.0.1:8546"
+log_scanner_interval: "5s"
+reorg_window: 10
+log_level: "debug"
+timeout: "30s"
+retry: 10
+backoff: "1s"
+max_backoff: "30s"
+api:
+  port: "8080"
+  timeout: "30s"
+argon2:
+  time: 1
+  memory: 65536
+  threads: 2
+  key_len: 32  
+mysql:
+  max_open_conns: 10
+  max_idle_conns: 10
+  conn_max_life_time: "5m"
+  retry: 10
+  wait_duration: "10s"
+  timeout: "30s"
+  event_dbm:
+    db_name: "event_db"
+    account: "root"
+    password: "root"
+    ip: "127.0.0.1"
+    port: "3306"
+  event_dbs:
+    db_name: "event_db"
+    account: "root"
+    password: "root"
+    ip: "127.0.0.1"
+    port: "3306"

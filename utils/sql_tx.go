@@ -20,7 +20,10 @@ func NewTx(db *sql.DB) *Tx {
 }
 
 func (t *Tx) Exec(ctx context.Context, txFNs ...FN) error {
-	tx, err := t.db.Begin()
+	tx, err := t.db.BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+		ReadOnly:  false,
+	})
 	if err != nil {
 		return err
 	}

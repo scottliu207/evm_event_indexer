@@ -3,72 +3,101 @@ package background
 import (
 	"context"
 	"database/sql"
-	"evm_event_indexer/service/db"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/storage"
+
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
 	"evm_event_indexer/service/repo/eventlog"
 	"evm_event_indexer/utils"
 	"fmt"
 	"log/slog"
-	"os"
-	"sync"
 	"time"
 )
 
-const TIMEOUT = 30 * time.Second
+type reorgMsg struct {
+	ContractAddress string
+	RollbackNumber  uint64
+	Backoff         time.Duration
+	Retry           int
+}
 
-var reorgChan = make(chan uint64, 1000)
-var mu sync.Mutex
+var reorgChan = make(chan *reorgMsg, 1000)
 
 func ReorgConsumer() {
 
-	for newHeadNumber := range reorgChan {
-
-		if err := reorgHandler(newHeadNumber); err != nil {
-			slog.Error("failed to handle reorg", slog.Any("err", err))
-			reorgChan <- newHeadNumber
+	for msg := range reorgChan {
+		// exceed retry limit, reset retry counter and skip the message
+		if msg.Retry > config.Get().Retry {
+			slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
 			continue
 		}
 
+		if err := reorgHandler(msg.RollbackNumber, msg.ContractAddress); err != nil {
+			slog.Error("failed to handle reorg", slog.Any("err", err))
+
+			// backoff
+			time.Sleep(msg.Backoff)
+			msg.Retry++
+			msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
+
+			// requeue
+			ReorgProducer(msg)
+			continue
+		}
 	}
 }
 
-func ReorgProducer(newblockNumber uint64) {
-	reorgChan <- newblockNumber
+func ReorgProducer(msg *reorgMsg) {
+
+	for range config.Get().Retry {
+		select {
+		case reorgChan <- msg:
+			return
+		default:
+			slog.Error("reorg channel is full, waiting for retry", slog.Any("msg", msg))
+			time.Sleep(msg.Backoff)
+			msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
+		}
+	}
+
+	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func reorgHandler(newHeadNumber uint64) error {
-	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+func reorgHandler(rollbackNumber uint64, address string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), config.Get().Timeout)
 	defer cancel()
 
-	mu.Lock()
-	defer mu.Unlock()
+	// lock by address
+
+	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	defer client.Close()
+
+	rollbackSyncNumber := uint64(0)
+	if rollbackNumber > 0 {
+		rollbackSyncNumber = rollbackNumber - 1
+	}
+
+	header, err := client.GetHeaderByNumber(rollbackSyncNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get header: %w", err)
+	}
 
 	now := time.Now()
 
-	// get the last block number
-	blockSync, err := blocksync.GetBlockSync(ctx, db.GetMysql(db.EVENT_DB), os.Getenv("CONTRACT_ADDRESS"))
-	if err != nil {
-		return fmt.Errorf("failed to get last sync data: %w", err)
-	}
-
-	if blockSync == nil {
-		blockSync = new(model.BlockSync)
-	}
-
-	err = utils.NewTx(db.GetMysql(db.EVENT_DB)).Exec(ctx,
+	err = utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, os.Getenv("CONTRACT_ADDRESS"), newHeadNumber)
+			return eventlog.TxDeleteLog(ctx, tx, address, rollbackNumber)
 		},
 		func(ctx context.Context, tx *sql.Tx) error {
-			rollbackNumber := uint64(0)
-			if newHeadNumber > 0 {
-				rollbackNumber = newHeadNumber - 1
-			}
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				Address:        os.Getenv("CONTRACT_ADDRESS"),
-				LastSyncNumber: rollbackNumber,
-				LastSyncHash:   "",
+				Address:        address,
+				LastSyncNumber: rollbackSyncNumber,
+				LastSyncHash:   header.Hash().String(),
 				UpdatedAt:      now,
 			})
 		},

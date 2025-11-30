@@ -2,6 +2,7 @@ package erc20_test
 
 import (
 	"context"
+	internalCnf "evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/erc20"
 	"evm_event_indexer/internal/eth"
 	"log"
@@ -10,22 +11,20 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/joho/godotenv"
 )
 
 var ctx = context.TODO()
 
+func TestMain(m *testing.M) {
+	internalCnf.LoadConfig("../../config/config.yaml")
+	os.Exit(m.Run())
+}
+
 func Test_Deploy(t *testing.T) {
-	if err := godotenv.Load("../../.env"); err != nil {
-		panic(err)
-	}
 
-	priv := os.Getenv("PRIVATE_KEY")
-	if priv == "" {
-		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
-	}
+	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC_HTTP"))
+	client, err := eth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,18 +49,11 @@ func Test_Deploy(t *testing.T) {
 }
 
 func Test_Transfer(t *testing.T) {
-	if err := godotenv.Load("../../.env"); err != nil {
-		panic(err)
-	}
 
-	addr := os.Getenv("CONTRACT_ADDRESS")
+	addr := internalCnf.Get().ContractsAddress[0]
+	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	priv := os.Getenv("PRIVATE_KEY")
-	if priv == "" {
-		log.Fatalf("missing PRIVATE_KEY env (hex, no passphrase)")
-	}
-
-	client, err := eth.NewClient(ctx, os.Getenv("ETH_RPC_HTTP"))
+	client, err := eth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}

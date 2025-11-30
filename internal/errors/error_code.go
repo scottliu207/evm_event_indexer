@@ -2,12 +2,14 @@ package errors
 
 import (
 	"net/http"
+	"strings"
 )
 
 type Err struct {
 	HTTPCode  int
 	ErrorCode int
 	Message   string
+	stack     error
 }
 
 // Error implements error.
@@ -20,6 +22,26 @@ func (e Err) Code() int {
 	return e.ErrorCode
 }
 
+func (e Err) New(AdditionTxt ...string) error {
+	msg := make([]string, 0, len(AdditionTxt)+1)
+	msg = append(msg, e.Message)
+	msg = append(msg, AdditionTxt...)
+	return &Err{HTTPCode: e.HTTPCode, ErrorCode: e.ErrorCode, Message: strings.Join(msg, ", ")}
+}
+
+func (e Err) Wrap(err error, AdditionTxt ...string) error {
+
+	msg := make([]string, 0, len(AdditionTxt)+1)
+	msg = append(msg, e.Message)
+	msg = append(msg, AdditionTxt...)
+	return &Err{
+		HTTPCode:  e.HTTPCode,
+		ErrorCode: e.ErrorCode,
+		Message:   strings.Join(msg, ":"),
+		stack:     err,
+	}
+}
+
 // Define error codes here
 var (
 	// general error
@@ -27,8 +49,8 @@ var (
 	API_TIMEOUT       = Err{HTTPCode: http.StatusRequestTimeout, ErrorCode: 1001, Message: "api timeout"}
 
 	// account/authorization error
-	ACCOUNT_EXISTS    = Err{HTTPCode: http.StatusConflict, ErrorCode: 2000, Message: "account already exists"}
-	ACCOUNT_NOT_FOUND = Err{HTTPCode: http.StatusNotFound, ErrorCode: 2001, Message: "account not found"}
+	ACCOUNT_ALREADY_EXISTS = Err{HTTPCode: http.StatusConflict, ErrorCode: 2000, Message: "account already exists"}
+	ACCOUNT_NOT_FOUND      = Err{HTTPCode: http.StatusNotFound, ErrorCode: 2001, Message: "account not found"}
 
 	// server error
 	INTERNAL_SERVER_ERROR = Err{HTTPCode: http.StatusInternalServerError, ErrorCode: 3000, Message: "something went wrong"}

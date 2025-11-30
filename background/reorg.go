@@ -3,9 +3,9 @@ package background
 import (
 	"context"
 	"database/sql"
-	internalCnf "evm_event_indexer/internal/config"
-	internalEth "evm_event_indexer/internal/eth"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/storage"
 
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
@@ -29,7 +29,7 @@ func ReorgConsumer() {
 
 	for msg := range reorgChan {
 		// exceed retry limit, reset retry counter and skip the message
-		if msg.Retry > internalCnf.Get().Retry {
+		if msg.Retry > config.Get().Retry {
 			slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
 			continue
 		}
@@ -40,7 +40,7 @@ func ReorgConsumer() {
 			// backoff
 			time.Sleep(msg.Backoff)
 			msg.Retry++
-			msg.Backoff = min(msg.Backoff*2, internalCnf.Get().MaxBackoff)
+			msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
 
 			// requeue
 			ReorgProducer(msg)
@@ -51,14 +51,14 @@ func ReorgConsumer() {
 
 func ReorgProducer(msg *reorgMsg) {
 
-	for range internalCnf.Get().Retry {
+	for range config.Get().Retry {
 		select {
 		case reorgChan <- msg:
 			return
 		default:
 			slog.Error("reorg channel is full, waiting for retry", slog.Any("msg", msg))
 			time.Sleep(msg.Backoff)
-			msg.Backoff = min(msg.Backoff*2, internalCnf.Get().MaxBackoff)
+			msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
 		}
 	}
 
@@ -66,12 +66,12 @@ func ReorgProducer(msg *reorgMsg) {
 }
 
 func reorgHandler(rollbackNumber uint64, address string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), internalCnf.Get().Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Get().Timeout)
 	defer cancel()
 
 	// lock by address
 
-	client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
@@ -89,7 +89,7 @@ func reorgHandler(rollbackNumber uint64, address string) error {
 
 	now := time.Now()
 
-	err = utils.NewTx(internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName)).Exec(ctx,
+	err = utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
 			return eventlog.TxDeleteLog(ctx, tx, address, rollbackNumber)
 		},

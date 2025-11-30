@@ -1,12 +1,18 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
+
 	"evm_event_indexer/api/protocol"
 	internalErr "evm_event_indexer/internal/errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
+
+const CTX_RESPONSE = "response"
 
 // ResponseHandler automatically handles API responses and errors.
 func ResponseHandler() gin.HandlerFunc {
@@ -19,7 +25,9 @@ func ResponseHandler() gin.HandlerFunc {
 			return
 		}
 
-		res := &protocol.Response{}
+		res := &protocol.Response{
+			Result: new(struct{}),
+		}
 
 		// Check for errors after processing, only handle the first error
 		last := c.Errors.Last()
@@ -28,9 +36,11 @@ func ResponseHandler() gin.HandlerFunc {
 		if last == nil {
 			res.Code = 0
 			res.Message = "success"
+
 			// return empty object when result is nil to maintain consistent JSON structure
-			if res.Result == nil {
-				res.Result = struct{}{}
+			result, ok := c.Get(CTX_RESPONSE)
+			if ok {
+				res.Result = result
 			}
 
 			c.JSON(c.Writer.Status(), res)
@@ -43,7 +53,7 @@ func ResponseHandler() gin.HandlerFunc {
 			res.Code = err.ErrorCode
 			res.Message = err.Message
 			c.JSON(err.HTTPCode, res)
-		case isBindErr(last.Err):
+		case last.Type == gin.ErrorTypeBind || isBindErr(last.Err):
 			res.Code = internalErr.API_INVALID_PARAM.ErrorCode
 			res.Message = internalErr.API_INVALID_PARAM.Message
 			c.JSON(internalErr.API_INVALID_PARAM.HTTPCode, res)
@@ -56,6 +66,17 @@ func ResponseHandler() gin.HandlerFunc {
 }
 
 func isBindErr(err error) bool {
-	var bindErr *gin.Error
-	return errors.As(err, &bindErr) && bindErr.Type == gin.ErrorTypeBind
+	var ve validator.ValidationErrors
+	if errors.As(err, &ve) {
+		return true
+	}
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return true
+	}
+	var unmarshalTypeErr *json.UnmarshalTypeError
+	if errors.As(err, &unmarshalTypeErr) {
+		return true
+	}
+	return errors.Is(err, io.EOF)
 }

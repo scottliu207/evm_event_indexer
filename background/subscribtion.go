@@ -45,7 +45,7 @@ func Subscription() {
 			return nil
 		}()
 		if err != nil {
-			slog.Error("subscription error", slog.Any("err", err))
+			slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
 			time.Sleep(backoff)
 			backoff = min(backoff*2, internalCnf.Get().MaxBackoff)
 			continue
@@ -83,7 +83,7 @@ func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
 			// get last sync block number
-			bcMap, err := blocksync.GetBlockSyncMap(ctx, internalStorage.GetMysql(internalCnf.Get().EventDB), internalCnf.Get().ContractsAddress)
+			bcMap, err := blocksync.GetBlockSyncMap(ctx, internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName), internalCnf.Get().ContractsAddress)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)

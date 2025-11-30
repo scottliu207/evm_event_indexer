@@ -10,26 +10,26 @@ import (
 
 // Upsert block sync status into db
 func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) error {
-
-	var sql strings.Builder
+	const sql = `
+	INSERT INTO event_db.block_sync(
+		address, 
+		last_sync_number, 
+		last_sync_hash, 
+		updated_at 
+	) VALUES (?,?,?,?) 
+	ON DUPLICATE KEY UPDATE 
+		last_sync_number = VALUES(last_sync_number), 
+		last_sync_hash = VALUES(last_sync_hash), 
+		updated_at = VALUES(updated_at) 
+	`
 	var params []any
-
-	sql.WriteString(" INSERT INTO `event_db`.`block_sync`(")
-	sql.WriteString("	`address`, ")
-	sql.WriteString("	`last_sync_number`, ")
-	sql.WriteString("	`last_sync_hash`, ")
-	sql.WriteString("	`updated_at` ")
-	sql.WriteString(" ) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE ")
-	sql.WriteString("	`last_sync_number` = VALUES(`last_sync_number`), ")
-	sql.WriteString("	`last_sync_hash` = VALUES(`last_sync_hash`), ")
-	sql.WriteString("	`updated_at` = VALUES(`updated_at`) ")
 
 	params = append(params, blockSync.Address)
 	params = append(params, blockSync.LastSyncNumber)
 	params = append(params, blockSync.LastSyncHash)
 	params = append(params, blockSync.UpdatedAt)
 
-	_, err := tx.ExecContext(ctx, sql.String(), params...)
+	_, err := tx.ExecContext(ctx, sql, params...)
 	if err != nil {
 		return err
 	}

@@ -89,7 +89,7 @@ func reorgHandler(rollbackNumber uint64, address string) error {
 
 	now := time.Now()
 
-	err = utils.NewTx(internalStorage.GetMysql(internalCnf.Get().EventDB)).Exec(ctx,
+	err = utils.NewTx(internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
 			return eventlog.TxDeleteLog(ctx, tx, address, rollbackNumber)
 		},

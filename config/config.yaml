@@ -13,6 +13,11 @@ max_backoff: "30s"
 api:
   port: "8080"
   timeout: "30s"
+argon2:
+  time: 1
+  memory: 65536
+  threads: 2
+  key_len: 32  
 mysql:
   max_open_conns: 10
   max_idle_conns: 10
@@ -20,16 +25,15 @@ mysql:
   retry: 10
   wait_duration: "10s"
   timeout: "30s"
-  db:
-    event_dbm:
-      db_name: "event_db"
-      account: "root"
-      password: "root"
-      ip: "127.0.0.1"
-      port: "3306"
-    event_dbs:
-      db_name: "event_db"
-      account: "root"
-      password: "root"
-      ip: "127.0.0.1"
-      port: "3306"
+  event_dbm:
+    db_name: "event_db"
+    account: "root"
+    password: "root"
+    ip: "127.0.0.1"
+    port: "3306"
+  event_dbs:
+    db_name: "event_db"
+    account: "root"
+    password: "root"
+    ip: "127.0.0.1"
+    port: "3306"

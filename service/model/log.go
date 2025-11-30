@@ -41,5 +41,5 @@ func (t *Topics) Value() (driver.Value, error) {
 	if t == nil {
 		return json.Marshal(&Topics{})
 	}
-	return json.Marshal(&t)
+	return json.Marshal(t)
 }

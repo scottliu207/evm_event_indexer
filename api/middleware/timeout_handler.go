@@ -3,10 +3,10 @@ package middleware
 import (
 	"evm_event_indexer/api/protocol"
 	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/heshuosg/system/cons/module/er.git"
 )
 
 // api timeout handler
@@ -31,10 +31,10 @@ func TimeoutHandler() func(c *gin.Context) {
 			panic(p)
 		case <-time.After(cnf.API.Timeout):
 			c.AbortWithStatusJSON(
-				er.APITimeout100002.HttpCode,
+				errors.API_TIMEOUT.HTTPCode,
 				&protocol.Response{
-					Code:    er.APITimeout100002.Code,
-					Message: er.APITimeout100002.Message,
+					Code:    errors.API_TIMEOUT.ErrorCode,
+					Message: errors.API_TIMEOUT.Message,
 				})
 		case <-finish:
 		}

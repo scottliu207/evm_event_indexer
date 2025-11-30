@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// NotFoundHandler handles 404 Not Found requests and returns a standardized response.
 func NotFoundHandler(c *gin.Context) {
 	c.JSON(http.StatusNotFound, protocol.Response{
-		Code:    404,
-		Message: "API Not Found",
-		Result: struct {
-		}{},
+		Code:    http.StatusNotFound,
+		Message: "api not found",
+		Result:  struct{}{},
 	})
 }

@@ -117,7 +117,7 @@ func LogScanner(address string) {
 			continue
 		}
 
-		header, err := client.HeaderByNumber(toBlock)
+		header, err := client.GetHeaderByNumber(toBlock)
 		if err != nil {
 			slog.Error("get block header error",
 				slog.Any("blockNumber", toBlock),

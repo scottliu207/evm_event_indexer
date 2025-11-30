@@ -8,11 +8,10 @@ import (
 )
 
 type Config struct {
-	PrivateKey         string        `yaml:"private_key"`
+	ContractsAddress   []string      `yaml:"contracts_address"`
 	EthRpcHTTP         string        `yaml:"eth_rpc_http"`
 	EthRpcWS           string        `yaml:"eth_rpc_ws"`
 	LogScannerInterval time.Duration `yaml:"log_scanner_interval"`
-	ContractAddress    string        `yaml:"contract_address"`
 	EventDB            string        `yaml:"event_db"`
 	ReorgWindow        int           `yaml:"reorg_window"`
 	LogLevel           string        `yaml:"log_level"`
@@ -50,8 +49,12 @@ type Config struct {
 
 var config = new(Config)
 
-func LoadConfig() {
-	data, err := os.ReadFile("./config/config.yaml")
+func LoadConfig(path string) {
+	if path == "" {
+		path = "./config/config.yaml"
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}

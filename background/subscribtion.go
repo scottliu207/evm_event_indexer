@@ -6,7 +6,6 @@ import (
 	internalEth "evm_event_indexer/internal/eth"
 	internalStorage "evm_event_indexer/internal/storage"
 
-	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
 	"fmt"
 	"log/slog"
@@ -58,6 +57,18 @@ func Subscription() {
 
 func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
 
+	if len(internalCnf.Get().ContractsAddress) == 0 {
+		slog.Warn("no contract addresses configured, skip subscription reorg check")
+		return nil
+	}
+
+	client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
+	if err != nil {
+		return err
+	}
+
+	defer client.Close()
+
 	for {
 		select {
 		case err := <-sub.Err():
@@ -72,34 +83,52 @@ func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
 			// get last sync block number
-			bc, err := blocksync.GetBlockSync(ctx, internalStorage.GetMysql(internalCnf.Get().EventDB), internalCnf.Get().ContractAddress)
+			bcMap, err := blocksync.GetBlockSyncMap(ctx, internalStorage.GetMysql(internalCnf.Get().EventDB), internalCnf.Get().ContractsAddress)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)
 			}
 
-			if bc == nil {
-				bc = new(model.BlockSync)
+			for _, addr := range internalCnf.Get().ContractsAddress {
+				bc, ok := bcMap[addr]
+				if !ok || bc == nil || bc.LastSyncNumber == 0 || bc.LastSyncHash == "" {
+					slog.Warn("no block sync found, skipping reorg process", slog.Any("address", addr))
+					continue
+				}
+
+				// get the latest sync block header
+				lbHeader, err := client.GetHeaderByNumber(bc.LastSyncNumber)
+				if err != nil {
+					slog.Error("get header error", slog.Any("height", bc.LastSyncNumber), slog.Any("err", err))
+					continue
+				}
+
+				// check if reorg happened
+				if lbHeader.Hash().String() == bc.LastSyncHash {
+					continue
+				}
+
+				reorgWindow := uint64(internalCnf.Get().ReorgWindow)
+
+				rollbackNum := uint64(0)
+				if bc.LastSyncNumber > reorgWindow {
+					rollbackNum = bc.LastSyncNumber - reorgWindow
+				}
+
+				ReorgProducer(&reorgMsg{
+					RollbackNumber:  rollbackNum,
+					Backoff:         internalCnf.Get().Backoff,
+					ContractAddress: addr,
+					Retry:           0,
+				})
+
+				slog.Info("reorg happened",
+					slog.Any("block number", header.Number),
+					slog.Any("last sync number", bc.LastSyncNumber),
+					slog.Any("rollback number", rollbackNum),
+					slog.Any("rollback hash", lbHeader.Hash().String()),
+				)
 			}
-
-			// if parent hash is the same as last sync hash, no reorg happened
-			if header.ParentHash.String() == bc.LastSyncHash {
-				continue
-			}
-
-			reorgWindow := uint64(internalCnf.Get().ReorgWindow)
-
-			slog.Info("reorg happened", slog.Any("block number", header.Number), slog.Any("last sync number", bc.LastSyncNumber))
-			rollbackHeight := uint64(0)
-			if bc.LastSyncNumber > reorgWindow {
-				rollbackHeight = bc.LastSyncNumber - reorgWindow
-			}
-
-			ReorgProducer(&reorgMsg{
-				RollbackNumber: rollbackHeight,
-				Backoff:        internalCnf.Get().Backoff,
-				Retry:          0,
-			})
 		}
 	}
 }

@@ -10,14 +10,16 @@ import (
 
 func main() {
 
-	internalCnf.LoadConfig()
+	internalCnf.LoadConfig("./config/config.yaml")
 	internalSlog.InitSlog()
 
 	internalStorage.InitDB()
 
 	go background.Subscription()
 	go background.ReorgConsumer()
-	go background.LogScanner(internalCnf.Get().ContractAddress)
+	for _, addr := range internalCnf.Get().ContractsAddress {
+		go background.LogScanner(addr)
+	}
 	api.Listen()
 
 }

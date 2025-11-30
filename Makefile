@@ -26,3 +26,8 @@ $(GEN_DIR)/$(PKG).go: $(OUT_DIR)/$(CONTRACT_NAME).sol/$(CONTRACT_NAME).json
 .PHONY: clean
 clean:
 	rm -rf $(OUT_DIR) $(GEN_DIR) cache
+
+
+.PHONY: run
+run:
+	go run cmd/indexer/main.go

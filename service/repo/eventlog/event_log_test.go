@@ -3,7 +3,10 @@ package eventlog_test
 import (
 	"context"
 	"database/sql"
-	"evm_event_indexer/service/db"
+	"os"
+
+	internalCnf "evm_event_indexer/internal/config"
+	internalStorage "evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/eventlog"
 	"evm_event_indexer/utils"
@@ -17,10 +20,19 @@ import (
 
 var ctx = context.TODO()
 
+func TestMain(m *testing.M) {
+	internalCnf.LoadConfig("../../../config/config.yaml")
+	internalStorage.InitDB()
+
+	os.Exit(m.Run())
+}
+
 func Test_TxInsertLog(t *testing.T) {
-	mysql := db.GetMysql(db.EVENT_DB)
+	internalCnf.LoadConfig("../../../config/config.yaml")
+	cnf := internalCnf.Get()
+	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-	err := utils.NewTx(mysql).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
+	err := utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return eventlog.TxUpsertLog(ctx, tx, &model.Log{
 			Address:     addr,
 			BlockHash:   common.Hash{}.String(),
@@ -39,7 +51,7 @@ func Test_TxInsertLog(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	log, err := eventlog.GetEventLog(ctx, mysql, 35)
+	log, err := eventlog.GetEventLog(ctx, db, 35)
 	spew.Dump(log)
 	assert.NoError(t, err)
 	assert.Equal(t, addr, log.Address)

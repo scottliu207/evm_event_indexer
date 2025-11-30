@@ -74,7 +74,7 @@ func TxGetEventLog(ctx context.Context, tx *sql.Tx, address string, blockNumber 
 	sql.WriteString(" FROM `event_db`.`event_log` ")
 	sql.WriteString(" WHERE ")
 	sql.WriteString("   `address` = ? ")
-	sql.WriteString("   `block_number` > ? ")
+	sql.WriteString("   AND `block_number` >= ? ")
 	sql.WriteString(" ORDER BY `block_number` ASC ")
 
 	params = append(params, address)
@@ -112,12 +112,11 @@ func TxGetEventLog(ctx context.Context, tx *sql.Tx, address string, blockNumber 
 func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, blockNumber uint64) error {
 	var sql strings.Builder
 	var params []any
-	var wheres = make([]string, 0)
+
 	sql.WriteString(" DELETE FROM `event_db`.`event_log`  ")
 	sql.WriteString(" WHERE ")
 	sql.WriteString("	`address` = ? ")
-	sql.WriteString("	`block_number` >= ? ")
-	sql.WriteString(strings.Join(wheres, " AND "))
+	sql.WriteString("	AND `block_number` >= ? ")
 
 	params = append(params, address)
 	params = append(params, blockNumber)

@@ -50,7 +50,7 @@ func Test_Deploy(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 
-	addr := internalCnf.Get().ContractsAddress[0]
+	addr := internalCnf.Get().Scanner[0].Address
 	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 	client, err := eth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)

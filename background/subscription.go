@@ -2,9 +2,10 @@ package background
 
 import (
 	"context"
-	internalCnf "evm_event_indexer/internal/config"
-	internalEth "evm_event_indexer/internal/eth"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/config"
+
+	"evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/storage"
 
 	"evm_event_indexer/service/repo/blocksync"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 )
 
 func Subscription() {
-	backoff := internalCnf.Get().Backoff
+	backoff := config.Get().Backoff
 
 	for {
 
@@ -24,7 +25,7 @@ func Subscription() {
 			ctx := context.Background()
 
 			headers := make(chan *types.Header)
-			client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcWS)
+			client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
 			if err != nil {
 				return err
 			}
@@ -47,22 +48,22 @@ func Subscription() {
 		if err != nil {
 			slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
 			time.Sleep(backoff)
-			backoff = min(backoff*2, internalCnf.Get().MaxBackoff)
+			backoff = min(backoff*2, config.Get().MaxBackoff)
 			continue
 		}
-		backoff = internalCnf.Get().Backoff
+		backoff = config.Get().Backoff
 	}
 
 }
 
 func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
 
-	if len(internalCnf.Get().ContractsAddress) == 0 {
+	if len(config.Get().Scanner) == 0 {
 		slog.Warn("no contract addresses configured, skip subscription reorg check")
 		return nil
 	}
 
-	client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
 	if err != nil {
 		return err
 	}
@@ -82,50 +83,47 @@ func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *
 
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
+			addresses := []string{}
+			for _, scanner := range config.Get().Scanner {
+				addresses = append(addresses, scanner.Address)
+			}
+
 			// get last sync block number
-			bcMap, err := blocksync.GetBlockSyncMap(ctx, internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName), internalCnf.Get().ContractsAddress)
+			bcMap, err := blocksync.GetBlockSyncMap(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), addresses)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)
 			}
 
-			for _, addr := range internalCnf.Get().ContractsAddress {
-				bc, ok := bcMap[addr]
+			for _, addr := range config.Get().Scanner {
+				bc, ok := bcMap[addr.Address]
 				if !ok || bc == nil || bc.LastSyncNumber == 0 || bc.LastSyncHash == "" {
 					slog.Warn("no block sync found, skipping reorg process", slog.Any("address", addr))
 					continue
 				}
 
-				// get the latest sync block header
+				// get the latest sync block header on chain
 				lbHeader, err := client.GetHeaderByNumber(bc.LastSyncNumber)
 				if err != nil {
 					slog.Error("get header error", slog.Any("height", bc.LastSyncNumber), slog.Any("err", err))
 					continue
 				}
 
-				// check if reorg happened
+				// check if the latest sync block hash is the same as the block hash on chain
 				if lbHeader.Hash().String() == bc.LastSyncHash {
 					continue
 				}
 
-				reorgWindow := uint64(internalCnf.Get().ReorgWindow)
-
-				rollbackNum := uint64(0)
-				if bc.LastSyncNumber > reorgWindow {
-					rollbackNum = bc.LastSyncNumber - reorgWindow
-				}
-
 				ReorgProducer(&reorgMsg{
-					RollbackNumber:  rollbackNum,
-					Backoff:         internalCnf.Get().Backoff,
-					ContractAddress: addr,
+					LastSyncNumber:  bc.LastSyncNumber,
+					Backoff:         config.Get().Backoff,
+					ContractAddress: addr.Address,
 					Retry:           0,
 				})
 
 				slog.Info("reorg happened",
 					slog.Any("block number", header.Number),
 					slog.Any("last sync number", bc.LastSyncNumber),
-					slog.Any("rollback number", rollbackNum),
 					slog.Any("rollback hash", lbHeader.Hash().String()),
 				)
 			}

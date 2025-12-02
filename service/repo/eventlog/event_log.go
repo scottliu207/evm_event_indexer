@@ -3,8 +3,11 @@ package eventlog
 import (
 	"context"
 	"database/sql"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"strings"
+	"time"
 )
 
 // Upsert log into db
@@ -56,31 +59,78 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	return nil
 }
 
-func TxGetEventLog(ctx context.Context, tx *sql.Tx, address string, blockNumber uint64) ([]*model.Log, error) {
+type GetLogParam struct {
+	Address        string
+	OrderBy        int8 // 1:block_timestamp 2:block_number
+	StartTime      time.Time
+	EndTime        time.Time
+	BlockNumberLTE uint64
+	Desc           bool
+	Pagination     *model.Pagination
+}
+
+// retrieves event logs matching the filter criteria.
+func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log, error) {
 	var sql strings.Builder
+	var wheres []string
 	var params []any
 
 	sql.WriteString(" SELECT ")
-	sql.WriteString("   `address`, ")
-	sql.WriteString("   `block_hash`, ")
-	sql.WriteString("   `block_number`, ")
-	sql.WriteString("   `topics`, ")
-	sql.WriteString("   `tx_index`, ")
-	sql.WriteString("   `log_index`, ")
-	sql.WriteString("   `tx_hash`, ")
-	sql.WriteString("   `data`, ")
-	sql.WriteString("   `block_timestamp`, ")
-	sql.WriteString("   `created_at` ")
-	sql.WriteString(" FROM `event_db`.`event_log` ")
+	sql.WriteString("   id,")
+	sql.WriteString("   address,")
+	sql.WriteString("   block_hash,")
+	sql.WriteString("   block_number,")
+	sql.WriteString("   topics,")
+	sql.WriteString("   tx_index,")
+	sql.WriteString("   log_index,")
+	sql.WriteString("   tx_hash,")
+	sql.WriteString("   data,")
+	sql.WriteString("   block_timestamp,")
+	sql.WriteString("   created_at ")
+	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
-	sql.WriteString("   `address` = ? ")
-	sql.WriteString("   AND `block_number` >= ? ")
-	sql.WriteString(" ORDER BY `block_number` ASC ")
+	wheres = append(wheres, " address = ? ")
+	params = append(params, filter.Address)
 
-	params = append(params, address)
-	params = append(params, blockNumber)
+	if !filter.StartTime.IsZero() {
+		params = append(params, filter.StartTime.UTC())
+		wheres = append(wheres, " block_timestamp >= ? ")
+	}
 
-	rows, err := tx.QueryContext(ctx, sql.String(), params...)
+	if !filter.EndTime.IsZero() {
+		params = append(params, filter.EndTime.UTC())
+		wheres = append(wheres, " block_timestamp <= ? ")
+	}
+
+	if filter.BlockNumberLTE > 0 {
+		params = append(params, filter.BlockNumberLTE)
+		wheres = append(wheres, " block_number <= ? ")
+	}
+
+	sql.WriteString(strings.Join(wheres, " AND "))
+
+	sql.WriteString(" ORDER BY ")
+	switch filter.OrderBy {
+	case 1:
+		sql.WriteString(" block_timestamp ")
+	case 2:
+		sql.WriteString(" block_number ")
+	default:
+		sql.WriteString(" id ")
+	}
+
+	if filter.Desc {
+		sql.WriteString(" DESC ")
+	} else {
+		sql.WriteString(" ASC ")
+	}
+
+	sql.WriteString(" LIMIT ? OFFSET ?")
+
+	params = append(params, filter.Pagination.Limit())
+	params = append(params, filter.Pagination.Offset())
+
+	rows, err := db.QueryContext(ctx, sql.String(), params...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +140,7 @@ func TxGetEventLog(ctx context.Context, tx *sql.Tx, address string, blockNumber 
 	for rows.Next() {
 		log := new(model.Log)
 		if err := rows.Scan(
+			&log.ID,
 			&log.Address,
 			&log.BlockHash,
 			&log.BlockNumber,
@@ -109,67 +160,75 @@ func TxGetEventLog(ctx context.Context, tx *sql.Tx, address string, blockNumber 
 	return logs, nil
 }
 
-func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, blockNumber uint64) error {
+// retrieves event logs matching the filter criteria.
+func GetLogs(ctx context.Context, filter *GetLogParam) ([]*model.Log, error) {
+	return getLogs(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), filter)
+}
+
+// gets the total count of event logs matching the filter criteria.
+func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, error) {
+
 	var sql strings.Builder
+	var wheres []string
 	var params []any
 
-	sql.WriteString(" DELETE FROM `event_db`.`event_log`  ")
+	sql.WriteString(" SELECT ")
+	sql.WriteString("   COUNT(*) ")
+	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
-	sql.WriteString("	`address` = ? ")
-	sql.WriteString("	AND `block_number` >= ? ")
+
+	wheres = append(wheres, " address = ? ")
+	params = append(params, filter.Address)
+
+	if !filter.StartTime.IsZero() {
+		params = append(params, filter.StartTime.UTC())
+		wheres = append(wheres, " block_timestamp >= ? ")
+	}
+
+	if !filter.EndTime.IsZero() {
+		params = append(params, filter.EndTime.UTC())
+		wheres = append(wheres, " block_timestamp <= ? ")
+	}
+
+	if filter.BlockNumberLTE > 0 {
+		params = append(params, filter.BlockNumberLTE)
+		wheres = append(wheres, " block_number <= ? ")
+	}
+
+	sql.WriteString(strings.Join(wheres, " AND "))
+
+	var total int64
+	err := db.QueryRowContext(ctx, sql.String(), params...).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+// gets the total count of event logs matching the filter criteria.
+func GetTotal(ctx context.Context, filter *GetLogParam) (int64, error) {
+	return getTotal(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), filter)
+}
+
+func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, fromBN uint64, toBN uint64) error {
+	const sql = `
+		DELETE FROM event_db.event_log
+		WHERE 
+		  address = ?
+		  AND block_number >= ?
+		  AND block_number <= ?
+	`
+	var params []any
 
 	params = append(params, address)
-	params = append(params, blockNumber)
+	params = append(params, fromBN)
+	params = append(params, toBN)
 
-	_, err := tx.ExecContext(ctx, sql.String(), params...)
+	_, err := tx.ExecContext(ctx, sql, params...)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func GetEventLog(ctx context.Context, db *sql.DB, id int64) (res *model.Log, err error) {
-	var sql strings.Builder
-
-	sql.WriteString(" SELECT ")
-	sql.WriteString("  `address`, ")
-	sql.WriteString("  `block_hash`, ")
-	sql.WriteString("  `block_number`, ")
-	sql.WriteString("  `topics`, ")
-	sql.WriteString("  `tx_index`, ")
-	sql.WriteString("  `log_index`, ")
-	sql.WriteString("  `tx_hash`, ")
-	sql.WriteString("  `data`, ")
-	sql.WriteString("  `block_timestamp`, ")
-	sql.WriteString("  `created_at` ")
-	sql.WriteString(" FROM `event_db`.`event_log` ")
-	sql.WriteString(" WHERE ")
-	sql.WriteString("  `id` = ? ")
-
-	row, err := db.QueryContext(ctx, sql.String(), id)
-	if err != nil {
-		return nil, err
-	}
-	defer row.Close()
-
-	for row.Next() {
-		res = new(model.Log)
-		if err := row.Scan(
-			&res.Address,
-			&res.BlockHash,
-			&res.BlockNumber,
-			&res.Topics,
-			&res.TxIndex,
-			&res.LogIndex,
-			&res.TxHash,
-			&res.Data,
-			&res.BlockTimestamp,
-			&res.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-	}
-
-	return res, nil
 }

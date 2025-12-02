@@ -6,11 +6,16 @@ import (
 )
 
 type Config struct {
-	ContractsAddress   []string      `yaml:"contracts_address"`
+	// ContractsAddress []string `yaml:"contracts_address"`
+	Scanner []struct {
+		Address   string   `yaml:"address"`
+		Topics    []string `yaml:"topic"`
+		BatchSize int32    `yaml:"batch_size"`
+	}
 	EthRpcHTTP         string        `yaml:"eth_rpc_http"`
 	EthRpcWS           string        `yaml:"eth_rpc_ws"`
 	LogScannerInterval time.Duration `yaml:"log_scanner_interval"`
-	ReorgWindow        int           `yaml:"reorg_window"`
+	ReorgWindow        int32         `yaml:"reorg_window"`
 	LogLevel           string        `yaml:"log_level"`
 	Timeout            time.Duration `yaml:"timeout"`
 	Retry              int           `yaml:"retry"`
@@ -53,8 +58,8 @@ type Config struct {
 var config = new(Config)
 
 func (c Config) Validate() error {
-	if len(c.ContractsAddress) == 0 {
-		return fmt.Errorf("contracts_address is required")
+	if len(c.Scanner) == 0 {
+		return fmt.Errorf("scanner is required")
 	}
 
 	if c.EthRpcHTTP == "" {

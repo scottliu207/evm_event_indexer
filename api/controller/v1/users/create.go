@@ -1,4 +1,4 @@
-package user
+package users
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"evm_event_indexer/api/middleware"
-	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/internal/storage"
@@ -47,7 +47,7 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	cnf := internalCnf.Get()
+	cnf := config.Get()
 
 	users, _, err := userRepo.GetUsers(c.Request.Context(), storage.GetMysql(cnf.MySQL.EventDBS.DBName), &userRepo.GetUserFilter{
 		Accounts: []string{req.Account},

@@ -80,10 +80,9 @@ func reorgHandler(lastSyncNumber uint64, address string) error {
 	checkpoint := lastSyncNumber
 	found := false
 	reorgHash := ""
+	// start from page 1
+	page := int32(1)
 	for {
-
-		// start from page 1
-		page := int32(1)
 
 		// batch size
 		size := config.Get().ReorgWindow
@@ -92,6 +91,7 @@ func reorgHandler(lastSyncNumber uint64, address string) error {
 		logs, err := eventlog.GetLogs(ctx, &eventlog.GetLogParam{
 			Address:        address,
 			OrderBy:        2,
+			Desc:           true,
 			BlockNumberLTE: checkpoint,
 			Pagination: &model.Pagination{
 				Page: page,

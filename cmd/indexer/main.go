@@ -1,11 +1,14 @@
 package main
 
 import (
-	"evm_event_indexer/api"
+	"context"
 	"evm_event_indexer/background"
 	"evm_event_indexer/internal/config"
-	internalSlog "evm_event_indexer/internal/slog"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/slog"
+	"evm_event_indexer/internal/storage"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -13,13 +16,21 @@ import (
 
 func main() {
 
-	config.LoadConfig("./config/config.yaml")
-	internalSlog.InitSlog()
+	initInfra()
 
-	internalStorage.InitDB()
+	// create background manager
+	bgManager := background.NewBGManager()
 
-	go background.Subscription()
-	go background.ReorgConsumer()
+	// register api server
+	bgManager.AddWorker(background.NewAPIServer())
+
+	// register subscription
+	bgManager.AddWorker(background.NewSubscription())
+
+	// register reorg consumer
+	bgManager.AddWorker(background.NewReorgConsumer())
+
+	// register scanners
 	for _, scan := range config.Get().Scanner {
 
 		topics := []common.Hash{}
@@ -27,8 +38,29 @@ func main() {
 			topics = append(topics, common.Hash(crypto.Keccak256([]byte(topic))))
 		}
 
-		go background.LogScanner(scan.Address, [][]common.Hash{topics}, scan.BatchSize)
+		bgManager.AddWorker(background.NewScanner(scan.Address, [][]common.Hash{topics}, scan.BatchSize))
 	}
-	api.Listen()
 
+	// global context
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// runs background services
+	bgManager.Start(ctx)
+
+	defer bgManager.Stop()
+
+	// wait for signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	// notify background services to stop
+	cancel()
+}
+
+// initialize infrastructure
+func initInfra() {
+	config.LoadConfig("./config/config.yaml")
+	slog.InitSlog()
+	storage.InitDB()
 }

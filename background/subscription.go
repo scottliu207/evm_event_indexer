@@ -16,47 +16,62 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func Subscription() {
-	backoff := config.Get().Backoff
+var _ Worker = (*Subscription)(nil)
 
-	for {
+type Subscription struct{}
 
-		err := func() error {
-			ctx := context.Background()
-
-			headers := make(chan *types.Header)
-			client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
-			if err != nil {
-				return err
-			}
-
-			defer client.Close()
-
-			sub, err := client.Subscribe(headers)
-			if err != nil {
-				return err
-			}
-
-			defer sub.Unsubscribe()
-
-			if err := subscription(ctx, sub, headers); err != nil {
-				return err
-			}
-
-			return nil
-		}()
-		if err != nil {
-			slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
-			time.Sleep(backoff)
-			backoff = min(backoff*2, config.Get().MaxBackoff)
-			continue
-		}
-		backoff = config.Get().Backoff
-	}
-
+func NewSubscription() *Subscription {
+	return &Subscription{}
 }
 
-func subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
+func (s *Subscription) Run(ctx context.Context) error {
+	backoff := config.Get().Backoff
+	for {
+
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			err := func() error {
+				headers := make(chan *types.Header)
+				client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
+				if err != nil {
+					return err
+				}
+
+				defer client.Close()
+
+				sub, err := client.Subscribe(headers)
+				if err != nil {
+					return err
+				}
+
+				defer sub.Unsubscribe()
+
+				if err := s.subscription(ctx, sub, headers); err != nil {
+					return err
+				}
+
+				return nil
+			}()
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+					slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
+					time.Sleep(backoff)
+					backoff = min(backoff*2, config.Get().MaxBackoff)
+					continue
+				}
+			}
+			// reset backoff
+			backoff = config.Get().Backoff
+		}
+	}
+}
+
+func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
 
 	if len(config.Get().Scanner) == 0 {
 		slog.Warn("no contract addresses configured, skip subscription reorg check")

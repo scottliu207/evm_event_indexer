@@ -16,6 +16,47 @@ import (
 	"time"
 )
 
+var _ Worker = (*ReorgConsumer)(nil)
+
+type ReorgConsumer struct{}
+
+func NewReorgConsumer() *ReorgConsumer {
+	return &ReorgConsumer{}
+}
+
+func (r *ReorgConsumer) Run(ctx context.Context) error {
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-reorgChan:
+			// exceed retry limit, reset retry counter and skip the message
+			if msg.Retry > config.Get().Retry {
+				slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
+				continue
+			}
+
+			if err := r.reorgHandler(msg.LastSyncNumber, msg.ContractAddress); err != nil {
+				slog.Error("failed to handle reorg", slog.Any("err", err))
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+					// backoff
+					time.Sleep(msg.Backoff)
+					msg.Retry++
+					msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
+
+					// requeue
+					ReorgProducer(msg)
+					continue
+				}
+			}
+		}
+	}
+}
+
 type reorgMsg struct {
 	ContractAddress string
 	LastSyncNumber  uint64
@@ -24,30 +65,6 @@ type reorgMsg struct {
 }
 
 var reorgChan = make(chan *reorgMsg, 1000)
-
-func ReorgConsumer() {
-
-	for msg := range reorgChan {
-		// exceed retry limit, reset retry counter and skip the message
-		if msg.Retry > config.Get().Retry {
-			slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
-			continue
-		}
-
-		if err := reorgHandler(msg.LastSyncNumber, msg.ContractAddress); err != nil {
-			slog.Error("failed to handle reorg", slog.Any("err", err))
-
-			// backoff
-			time.Sleep(msg.Backoff)
-			msg.Retry++
-			msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
-
-			// requeue
-			ReorgProducer(msg)
-			continue
-		}
-	}
-}
 
 func ReorgProducer(msg *reorgMsg) {
 
@@ -65,7 +82,7 @@ func ReorgProducer(msg *reorgMsg) {
 	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func reorgHandler(lastSyncNumber uint64, address string) error {
+func (r *ReorgConsumer) reorgHandler(lastSyncNumber uint64, address string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Get().Timeout)
 	defer cancel()
 
@@ -82,10 +99,9 @@ func reorgHandler(lastSyncNumber uint64, address string) error {
 	reorgHash := ""
 	// start from page 1
 	page := int32(1)
+	// batch size
+	size := config.Get().ReorgWindow
 	for {
-
-		// batch size
-		size := config.Get().ReorgWindow
 
 		// get batch logs to find the rollback checkpoint
 		logs, err := eventlog.GetLogs(ctx, &eventlog.GetLogParam{
@@ -93,6 +109,7 @@ func reorgHandler(lastSyncNumber uint64, address string) error {
 			OrderBy:        2,
 			Desc:           true,
 			BlockNumberLTE: checkpoint,
+			Desc:           true,
 			Pagination: &model.Pagination{
 				Page: page,
 				Size: size,

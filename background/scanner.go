@@ -3,9 +3,9 @@ package background
 import (
 	"context"
 	"database/sql"
-	internalCnf "evm_event_indexer/internal/config"
-	internalEth "evm_event_indexer/internal/eth"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/storage"
 	"fmt"
 
 	"evm_event_indexer/service/model"
@@ -16,59 +16,42 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-)
-
-const (
-	ERC20_TRANSFER_EVENT = "Transfer(address,address,uint256)"
-	ERC20_APPROVAL_EVENT = "Approval(address,address,uint256)"
-	size                 = uint64(100)
 )
 
 // LogScanner runs a periodic log sync for a specific contract address.
 // It automatically retries with exponential backoff when the scanner stops unexpectedly.
-func LogScanner(address string) {
+func LogScanner(address string, topics [][]common.Hash, batchSize int32) {
 	ctx := context.Background()
 
 	for {
 		err := func() error {
-			client, err := internalEth.NewClient(ctx, internalCnf.Get().EthRpcHTTP)
+			client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
 			if err != nil {
 				return fmt.Errorf("failed to create eth client: %w", err)
 			}
 			defer client.Close()
 
-			return scan(ctx, client, address)
+			return scan(ctx, client, address, topics, batchSize)
 		}()
 
 		if err != nil {
 			slog.Error("scanner error occurred, waiting to retry",
 				slog.Any("err", err),
 				slog.Any("address", address),
-				slog.Any("retry_delay", internalCnf.Get().MaxBackoff),
+				slog.Any("retry_delay", config.Get().MaxBackoff),
 			)
-			time.Sleep(internalCnf.Get().MaxBackoff)
+			time.Sleep(config.Get().MaxBackoff)
 		}
 	}
 }
 
-func scan(ctx context.Context, client *internalEth.Client, address string) error {
+func scan(ctx context.Context, client *eth.Client, address string, topics [][]common.Hash, batchSize int32) error {
 
-	topics := [][]common.Hash{
-		// topics, filetering Transfer and Approval events
-		{
-			common.Hash(crypto.Keccak256([]byte(ERC20_TRANSFER_EVENT))),
-			common.Hash(crypto.Keccak256([]byte(ERC20_APPROVAL_EVENT))),
-		},
-		// from
-		// to
-	}
-
-	ticker := time.NewTicker(internalCnf.Get().LogScannerInterval)
+	ticker := time.NewTicker(config.Get().LogScannerInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if err := syncLog(ctx, client, address, topics); err != nil {
+		if err := syncLog(ctx, client, address, topics, batchSize); err != nil {
 			slog.Error("syncLog error occurred",
 				slog.Any("err", err),
 				slog.String("address", address),
@@ -79,11 +62,11 @@ func scan(ctx context.Context, client *internalEth.Client, address string) error
 	return nil
 }
 
-func syncLog(ctx context.Context, client *internalEth.Client, address string, topics [][]common.Hash) error {
+func syncLog(ctx context.Context, client *eth.Client, address string, topics [][]common.Hash, batchSize int32) error {
 
 	now := time.Now()
 
-	bc, err := blocksync.GetBlockSync(ctx, internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName), address)
+	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), address)
 	if err != nil {
 		return fmt.Errorf("get block sync status error: %w", err)
 	}
@@ -105,7 +88,7 @@ func syncLog(ctx context.Context, client *internalEth.Client, address string, to
 		return fmt.Errorf("get current block number error for address %s: %w", address, err)
 	}
 
-	toBlock := min(syncBlock+size, latestBlock)
+	toBlock := min(syncBlock+uint64(batchSize), latestBlock)
 	if syncBlock > toBlock {
 		slog.Info("no new blocks to scan",
 			slog.Any("lastSyncNumber", bc.LastSyncNumber),
@@ -114,7 +97,7 @@ func syncLog(ctx context.Context, client *internalEth.Client, address string, to
 		return nil
 	}
 
-	eventLogs, err := client.GetLogs(internalEth.GetLogsParams{
+	eventLogs, err := client.GetLogs(eth.GetLogsParams{
 		FromBlock: syncBlock,
 		ToBlock:   toBlock,
 		Addresses: []common.Address{common.HexToAddress(address)},
@@ -132,12 +115,6 @@ func syncLog(ctx context.Context, client *internalEth.Client, address string, to
 	newSyncNumber := toBlock
 	newSyncHash := header.Hash().Hex()
 
-	slog.Info("event logs info",
-		slog.Any("lastSyncNumber", syncBlock),
-		slog.Any("toBlock", toBlock),
-		slog.Any("total logs count", len(eventLogs)),
-	)
-
 	logs := make([]*model.Log, len(eventLogs))
 	for i, v := range eventLogs {
 
@@ -151,20 +128,16 @@ func syncLog(ctx context.Context, client *internalEth.Client, address string, to
 			BlockHash:      v.BlockHash.Hex(),
 			BlockNumber:    v.BlockNumber,
 			Topics:         &topics,
-			TxIndex:        v.TxIndex,
-			LogIndex:       v.Index,
+			TxIndex:        int32(v.TxIndex),
+			LogIndex:       int32(v.Index),
 			TxHash:         v.TxHash.Hex(),
 			Data:           v.Data,
 			BlockTimestamp: time.Unix(int64(v.BlockTimestamp), 0),
 			CreatedAt:      now,
 		}
-
-		slog.Info("event log info",
-			slog.Any("log", v),
-		)
 	}
 
-	if err := utils.NewTx(internalStorage.GetMysql(internalCnf.Get().MySQL.EventDBS.DBName)).Exec(ctx,
+	if err := utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
 			if len(logs) == 0 {
 				return nil

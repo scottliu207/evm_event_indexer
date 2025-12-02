@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +26,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func Test_TxInsertLog(t *testing.T) {
+func Test_LogRepo(t *testing.T) {
 	internalCnf.LoadConfig("../../../config/config.yaml")
 	cnf := internalCnf.Get()
 	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
@@ -51,8 +50,19 @@ func Test_TxInsertLog(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	log, err := eventlog.GetEventLog(ctx, db, 35)
-	spew.Dump(log)
+	param := &eventlog.GetLogParam{
+		Address:    addr,
+		StartTime:  time.Now().Add(-time.Hour),
+		EndTime:    time.Now(),
+		Pagination: &model.Pagination{Page: 1, Size: 10},
+	}
+	total, err := eventlog.GetTotal(ctx, param)
 	assert.NoError(t, err)
-	assert.Equal(t, addr, log.Address)
+	assert.Equal(t, int64(1), total)
+
+	logs, err := eventlog.GetLogs(ctx, param)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, logs)
+	assert.Equal(t, addr, logs[0].Address)
+
 }

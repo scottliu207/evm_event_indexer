@@ -9,12 +9,13 @@ import (
 
 type (
 	Log struct {
+		ID             int64
 		Address        string
 		BlockHash      string
 		BlockNumber    uint64
 		Topics         *Topics
-		TxIndex        uint
-		LogIndex       uint
+		TxIndex        int32
+		LogIndex       int32
 		TxHash         string
 		Data           []byte
 		BlockTimestamp time.Time
@@ -42,4 +43,12 @@ func (t *Topics) Value() (driver.Value, error) {
 		return json.Marshal(&Topics{})
 	}
 	return json.Marshal(t)
+}
+
+func (t *Topics) Array() []string {
+	if t == nil {
+		return []string{}
+	}
+
+	return *t
 }

@@ -18,7 +18,7 @@ import (
 
 type reorgMsg struct {
 	ContractAddress string
-	RollbackNumber  uint64
+	LastSyncNumber  uint64
 	Backoff         time.Duration
 	Retry           int
 }
@@ -34,7 +34,7 @@ func ReorgConsumer() {
 			continue
 		}
 
-		if err := reorgHandler(msg.RollbackNumber, msg.ContractAddress); err != nil {
+		if err := reorgHandler(msg.LastSyncNumber, msg.ContractAddress); err != nil {
 			slog.Error("failed to handle reorg", slog.Any("err", err))
 
 			// backoff
@@ -65,7 +65,7 @@ func ReorgProducer(msg *reorgMsg) {
 	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func reorgHandler(rollbackNumber uint64, address string) error {
+func reorgHandler(lastSyncNumber uint64, address string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Get().Timeout)
 	defer cancel()
 
@@ -77,27 +77,70 @@ func reorgHandler(rollbackNumber uint64, address string) error {
 	}
 	defer client.Close()
 
-	rollbackSyncNumber := uint64(0)
-	if rollbackNumber > 0 {
-		rollbackSyncNumber = rollbackNumber - 1
-	}
+	checkpoint := lastSyncNumber
+	found := false
+	reorgHash := ""
+	for {
 
-	header, err := client.GetHeaderByNumber(rollbackSyncNumber)
-	if err != nil {
-		return fmt.Errorf("failed to get header: %w", err)
+		// start from page 1
+		page := int32(1)
+
+		// batch size
+		size := config.Get().ReorgWindow
+
+		// get batch logs to find the rollback checkpoint
+		logs, err := eventlog.GetLogs(ctx, &eventlog.GetLogParam{
+			Address:        address,
+			OrderBy:        2,
+			BlockNumberLTE: checkpoint,
+			Pagination: &model.Pagination{
+				Page: page,
+				Size: size,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get logs: %w", err)
+		}
+
+		for _, log := range logs {
+			// get the block on chain
+			header, err := client.GetHeaderByNumber(log.BlockNumber)
+			if err != nil {
+				return fmt.Errorf("failed to get header: %w", err)
+			}
+
+			// if block hash matches, means we have found the checkpoint
+			if header.Hash().String() == log.BlockHash {
+				found = true
+				reorgHash = header.Hash().String()
+				break
+			}
+
+			// move checkpoint
+			checkpoint = log.BlockNumber
+		}
+
+		// if checkpoint found, break
+		// if less than size, means we are current at the last page, also break
+		if int32(len(logs)) < size || found {
+			break
+		}
+
+		// otherwise, move on to next page
+		page++
 	}
 
 	now := time.Now()
 
 	err = utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, address, rollbackNumber)
+			return eventlog.TxDeleteLog(ctx, tx, address, checkpoint, lastSyncNumber)
 		},
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 				Address:        address,
-				LastSyncNumber: rollbackSyncNumber,
-				LastSyncHash:   header.Hash().String(),
+				LastSyncNumber: checkpoint,
+				LastSyncHash:   reorgHash,
 				UpdatedAt:      now,
 			})
 		},

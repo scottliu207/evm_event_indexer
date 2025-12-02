@@ -109,7 +109,6 @@ func (r *ReorgConsumer) reorgHandler(lastSyncNumber uint64, address string) erro
 			OrderBy:        2,
 			Desc:           true,
 			BlockNumberLTE: checkpoint,
-			Desc:           true,
 			Pagination: &model.Pagination{
 				Page: page,
 				Size: size,

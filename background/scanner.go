@@ -139,15 +139,22 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 			BlockTimestamp: time.Unix(int64(v.BlockTimestamp), 0),
 			CreatedAt:      now,
 		}
-		// decode event
+
+		// decode event, if decode failed, keep raw data only
 		name, args, err := decoder.Provider.Decode(logs[i])
 		if err != nil {
-			return fmt.Errorf("decode event error for address %s, block number %d, tx index %d, log index %d: %w", s.Address, v.BlockNumber, v.TxIndex, v.Index, err)
-		}
-
-		logs[i].DecodedEvent = &model.DecodedEvent{
-			EventName: name,
-			EventData: args,
+			slog.Error("decode event error",
+				slog.Any("err", err),
+				slog.Any("address", s.Address),
+				slog.Any("blockNumber", v.BlockNumber),
+				slog.Any("txHash", v.TxHash.Hex()),
+				slog.Any("logIndex", v.Index),
+			)
+		} else {
+			logs[i].DecodedEvent = &model.DecodedEvent{
+				EventName: name,
+				EventData: args,
+			}
 		}
 	}
 

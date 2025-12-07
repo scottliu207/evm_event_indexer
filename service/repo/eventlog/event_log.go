@@ -98,8 +98,10 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
 
-	wheres = append(wheres, " chain_type = ? ")
-	params = append(params, filter.ChainType)
+	if filter.ChainType != 0 {
+		wheres = append(wheres, " chain_type = ? ")
+		params = append(params, filter.ChainType)
+	}
 
 	wheres = append(wheres, " address = ? ")
 	params = append(params, filter.Address)
@@ -191,8 +193,10 @@ func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
 
-	wheres = append(wheres, " chain_type = ? ")
-	params = append(params, filter.ChainType)
+	if filter.ChainType != 0 {
+		wheres = append(wheres, " chain_type = ? ")
+		params = append(params, filter.ChainType)
+	}
 
 	wheres = append(wheres, " address = ? ")
 	params = append(params, filter.Address)

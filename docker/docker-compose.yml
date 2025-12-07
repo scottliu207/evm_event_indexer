@@ -5,10 +5,29 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      # MYSQL_DATABASE: event_db
     ports:
       - "3306:3306"
     volumes:
-      # 將 schema 目錄掛載到 MySQL 預設的 init 目錄
-      # 官方 entrypoint 會在第一次啟動時自動執行裡面的 *.sql
+      # load schema from local directory for initialization
       - ./db/schema:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10      
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: evm-event-indexer
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=UTC # default timezone 
+    volumes:
+      - ../config:/app/config:ro      

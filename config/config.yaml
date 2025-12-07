@@ -7,7 +7,7 @@ scanner:
     batch_size: 20
 eth_rpc_http: "http://127.0.0.1:8545"
 eth_rpc_ws: "ws://127.0.0.1:8545"
-log_scanner_interval: "10s"
+log_scanner_interval: "5s"
 reorg_window: 10
 log_level: "debug"
 timeout: "30s"

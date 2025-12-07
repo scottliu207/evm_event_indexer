@@ -28,46 +28,43 @@ func (s *Subscription) Run(ctx context.Context) error {
 	backoff := config.Get().Backoff
 	for {
 
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			err := func() error {
-				headers := make(chan *types.Header)
-				client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
-				if err != nil {
-					return err
-				}
-
-				defer client.Close()
-
-				sub, err := client.Subscribe(headers)
-				if err != nil {
-					return err
-				}
-
-				defer sub.Unsubscribe()
-
-				if err := s.subscription(ctx, sub, headers); err != nil {
-					return err
-				}
-
-				return nil
-			}()
+		err := func() error {
+			headers := make(chan *types.Header)
+			client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
 			if err != nil {
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
-					slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
-					time.Sleep(backoff)
-					backoff = min(backoff*2, config.Get().MaxBackoff)
-					continue
-				}
+				return err
 			}
-			// reset backoff
-			backoff = config.Get().Backoff
+
+			defer client.Close()
+
+			sub, err := client.Subscribe(headers)
+			if err != nil {
+				return err
+			}
+
+			defer sub.Unsubscribe()
+
+			if err := s.subscription(ctx, sub, headers); err != nil {
+				return err
+			}
+
+			return nil
+		}()
+
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+
+		if err != nil {
+			slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
+			time.Sleep(backoff)
+			backoff = min(backoff*2, config.Get().MaxBackoff)
+			continue
+		}
+
+		// reset backoff
+		backoff = config.Get().Backoff
+
 	}
 }
 
@@ -87,6 +84,8 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil // context done, exit the loop
 		case err := <-sub.Err():
 			slog.Error("subscription error", slog.Any("err", err))
 			return fmt.Errorf("subscription error, %w", err)

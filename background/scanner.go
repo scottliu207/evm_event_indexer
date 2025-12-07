@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/decoder"
+	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/eth"
 	"evm_event_indexer/internal/storage"
 	"fmt"
@@ -35,7 +37,6 @@ func NewScanner(address string, topics [][]common.Hash, batchSize int32) *Scanne
 }
 
 // Runs a periodic log sync for a specific contract address.
-// It automatically retries with exponential backoff when the scanner stops unexpectedly.
 func (s *Scanner) Run(ctx context.Context) error {
 	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
 	if err != nil {
@@ -44,27 +45,11 @@ func (s *Scanner) Run(ctx context.Context) error {
 
 	defer client.Close()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			if err := s.scan(ctx, client); err != nil {
-				slog.Error("scanner error occurred, waiting to retry",
-					slog.Any("err", err),
-					slog.Any("address", s.Address),
-					slog.Any("retry_delay", config.Get().MaxBackoff),
-				)
-
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
-					time.Sleep(config.Get().MaxBackoff)
-				}
-			}
-		}
+	if err := s.scan(ctx, client); err != nil {
+		return fmt.Errorf("scanner error: %w, address: %s", err, s.Address)
 	}
+
+	return nil
 }
 
 func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
@@ -72,16 +57,19 @@ func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
 	ticker := time.NewTicker(config.Get().LogScannerInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if err := s.syncLog(ctx, client); err != nil {
-			slog.Error("syncLog error occurred",
-				slog.Any("err", err),
-				slog.String("address", s.Address),
-			)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := s.syncLog(ctx, client); err != nil {
+				slog.Error("syncLog error",
+					slog.Any("err", err),
+					slog.String("address", s.Address),
+				)
+			}
 		}
 	}
-
-	return nil
 }
 
 func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
@@ -136,26 +124,30 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	newSyncNumber := toBlock
 	newSyncHash := header.Hash().Hex()
-
 	logs := make([]*model.Log, len(eventLogs))
 	for i, v := range eventLogs {
-
-		topics := make(model.Topics, len(v.Topics))
-		for j, topic := range v.Topics {
-			topics[j] = topic.Hex()
-		}
-
 		logs[i] = &model.Log{
+			ChainType:      enum.CHOther,
 			Address:        v.Address.Hex(),
 			BlockHash:      v.BlockHash.Hex(),
 			BlockNumber:    v.BlockNumber,
-			Topics:         &topics,
+			Topics:         (*model.Topics)(&v.Topics),
 			TxIndex:        int32(v.TxIndex),
 			LogIndex:       int32(v.Index),
 			TxHash:         v.TxHash.Hex(),
 			Data:           v.Data,
 			BlockTimestamp: time.Unix(int64(v.BlockTimestamp), 0),
 			CreatedAt:      now,
+		}
+		// decode event
+		name, args, err := decoder.Provider.Decode(logs[i])
+		if err != nil {
+			return fmt.Errorf("decode event error for address %s, block number %d, tx index %d, log index %d: %w", s.Address, v.BlockNumber, v.TxIndex, v.Index, err)
+		}
+
+		logs[i].DecodedEvent = &model.DecodedEvent{
+			EventName: name,
+			EventData: args,
 		}
 	}
 

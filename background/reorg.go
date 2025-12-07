@@ -37,7 +37,7 @@ func (r *ReorgConsumer) Run(ctx context.Context) error {
 				continue
 			}
 
-			if err := r.reorgHandler(msg.LastSyncNumber, msg.ContractAddress); err != nil {
+			if err := r.reorgHandler(ctx, msg.LastSyncNumber, msg.ContractAddress); err != nil {
 				slog.Error("failed to handle reorg", slog.Any("err", err))
 				select {
 				case <-ctx.Done():
@@ -82,8 +82,8 @@ func ReorgProducer(msg *reorgMsg) {
 	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func (r *ReorgConsumer) reorgHandler(lastSyncNumber uint64, address string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), config.Get().Timeout)
+func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, lastSyncNumber uint64, address string) error {
+	ctx, cancel := context.WithTimeout(parentCtx, config.Get().Timeout)
 	defer cancel()
 
 	// lock by address

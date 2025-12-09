@@ -6,17 +6,25 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/slog"
 	"evm_event_indexer/internal/storage"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func main() {
-
+	fmt.Println("Infrastructure initialization started.")
 	initInfra()
+	fmt.Println("Infrastructure initialization completed, waiting for 10 seconds...")
+	time.Sleep(10 * time.Second)
+
+	fmt.Println("Initializing database...")
+	storage.InitDB()
+	fmt.Println("Database initialized")
 
 	// create background manager
 	bgManager := background.NewBGManager()
@@ -45,9 +53,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// runs background services
+	fmt.Println("Starting background services...")
 	bgManager.Start(ctx)
 
 	defer bgManager.Stop()
+	fmt.Println("Background services stopped")
 
 	// wait for signal
 	quit := make(chan os.Signal, 1)
@@ -62,5 +72,4 @@ func main() {
 func initInfra() {
 	config.LoadConfig("./config/config.yaml")
 	slog.InitSlog()
-	storage.InitDB()
 }

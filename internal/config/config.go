@@ -9,9 +9,9 @@ type Config struct {
 	// ContractsAddress []string `yaml:"contracts_address"`
 	Scanner []struct {
 		Address   string   `yaml:"address"`
-		Topics    []string `yaml:"topic"`
+		Topics    []string `yaml:"topics"`
 		BatchSize int32    `yaml:"batch_size"`
-	}
+	} `yaml:"scanner"`
 	EthRpcHTTP         string        `yaml:"eth_rpc_http"`
 	EthRpcWS           string        `yaml:"eth_rpc_ws"`
 	LogScannerInterval time.Duration `yaml:"log_scanner_interval"`
@@ -38,21 +38,17 @@ type Config struct {
 		Retry           int           `yaml:"retry"`
 		WaitDuration    time.Duration `yaml:"wait_duration"`
 		Timeout         time.Duration `yaml:"timeout"`
-		EventDBM        struct {
-			DBName   string `yaml:"db_name"`
-			Account  string `yaml:"account"`
-			Password string `yaml:"password"`
-			IP       string `yaml:"ip"`
-			Port     string `yaml:"port"`
-		} `yaml:"event_dbm"`
-		EventDBS struct {
-			DBName   string `yaml:"db_name"`
-			Account  string `yaml:"account"`
-			Password string `yaml:"password"`
-			IP       string `yaml:"ip"`
-			Port     string `yaml:"port"`
-		} `yaml:"event_dbs"`
+		EventDBM        mysql         `yaml:"event_dbm"`
+		EventDBS        mysql         `yaml:"event_dbs"`
 	} `yaml:"mysql"`
+}
+
+type mysql struct {
+	DBName   string `yaml:"db_name"`
+	Account  string `yaml:"account"`
+	Password string `yaml:"password"`
+	IP       string `yaml:"ip"`
+	Port     string `yaml:"port"`
 }
 
 var config = new(Config)

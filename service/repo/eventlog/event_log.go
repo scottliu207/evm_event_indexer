@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"strings"
@@ -16,6 +17,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	var params []any
 	var placeholder = make([]string, len(log))
 	sql.WriteString(" INSERT INTO `event_db`.`event_log`( ")
+	sql.WriteString("	`chain_type`, ")
 	sql.WriteString("	`address`, ")
 	sql.WriteString("	`block_hash`, ")
 	sql.WriteString("	`block_number`, ")
@@ -24,12 +26,14 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	sql.WriteString("	`log_index`, ")
 	sql.WriteString("	`tx_hash`, ")
 	sql.WriteString("	`data`, ")
+	sql.WriteString("	`decoded_event`, ")
 	sql.WriteString("	`block_timestamp`, ")
 	sql.WriteString("	`created_at` ")
 	sql.WriteString(" ) VALUES ")
 
 	for i, v := range log {
-		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?) "
+		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?,?,?) "
+		params = append(params, v.ChainType)
 		params = append(params, v.Address)
 		params = append(params, v.BlockHash)
 		params = append(params, v.BlockNumber)
@@ -38,6 +42,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 		params = append(params, v.LogIndex)
 		params = append(params, v.TxHash)
 		params = append(params, v.Data)
+		params = append(params, v.DecodedEvent)
 		params = append(params, v.BlockTimestamp)
 		params = append(params, v.CreatedAt)
 	}
@@ -60,6 +65,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 }
 
 type GetLogParam struct {
+	ChainType      enum.ChainType
 	Address        string
 	OrderBy        int8 // 1:block_timestamp 2:block_number
 	StartTime      time.Time
@@ -77,6 +83,7 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 
 	sql.WriteString(" SELECT ")
 	sql.WriteString("   id,")
+	sql.WriteString("   chain_type,")
 	sql.WriteString("   address,")
 	sql.WriteString("   block_hash,")
 	sql.WriteString("   block_number,")
@@ -85,10 +92,17 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	sql.WriteString("   log_index,")
 	sql.WriteString("   tx_hash,")
 	sql.WriteString("   data,")
+	sql.WriteString("   decoded_event,")
 	sql.WriteString("   block_timestamp,")
 	sql.WriteString("   created_at ")
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
+
+	if filter.ChainType != 0 {
+		wheres = append(wheres, " chain_type = ? ")
+		params = append(params, filter.ChainType)
+	}
+
 	wheres = append(wheres, " address = ? ")
 	params = append(params, filter.Address)
 
@@ -141,6 +155,7 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 		log := new(model.Log)
 		if err := rows.Scan(
 			&log.ID,
+			&log.ChainType,
 			&log.Address,
 			&log.BlockHash,
 			&log.BlockNumber,
@@ -149,6 +164,7 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 			&log.LogIndex,
 			&log.TxHash,
 			&log.Data,
+			&log.DecodedEvent,
 			&log.BlockTimestamp,
 			&log.CreatedAt,
 		); err != nil {
@@ -176,6 +192,11 @@ func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	sql.WriteString("   COUNT(*) ")
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
+
+	if filter.ChainType != 0 {
+		wheres = append(wheres, " chain_type = ? ")
+		params = append(params, filter.ChainType)
+	}
 
 	wheres = append(wheres, " address = ? ")
 	params = append(params, filter.Address)

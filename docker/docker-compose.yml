@@ -1,14 +1,67 @@
 services:
+# database for storing EVM events
   mysql:
     image: mysql:8.0
     container_name: evm-event-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      # MYSQL_DATABASE: event_db
     ports:
       - "3306:3306"
+    networks:
+      - evm-event-indexer-network
     volumes:
-      # 將 schema 目錄掛載到 MySQL 預設的 init 目錄
-      # 官方 entrypoint 會在第一次啟動時自動執行裡面的 *.sql
+      # load schema from local directory for initialization
       - ./db/schema:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10      
+
+# local Ethereum node for testing
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: anvil
+    command: ["--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
+    ports:
+      - "8545:8545"
+    networks:
+      - evm-event-indexer-network
+
+# main service for indexing EVM events
+  indexer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: evm-event-indexer
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      anvil:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    networks:
+      - evm-event-indexer-network      
+    environment:
+      - TZ=UTC # default timezone 
+      - MYSQL_EVENT_DBM_IP=evm-event-mysql
+      - MYSQL_EVENT_DBM_PORT=3306
+      - MYSQL_EVENT_DBM_ACCOUNT=root
+      - MYSQL_EVENT_DBM_PASSWORD=root
+      - MYSQL_EVENT_DBM_DBNAME=event_db
+      - MYSQL_EVENT_DBS_IP=evm-event-mysql
+      - MYSQL_EVENT_DBS_PORT=3306
+      - MYSQL_EVENT_DBS_ACCOUNT=root
+      - MYSQL_EVENT_DBS_PASSWORD=root
+      - MYSQL_EVENT_DBS_DBNAME=event_db
+      - ETH_RPC_HTTP=http://anvil:8545
+      - ETH_RPC_WS=ws://anvil:8545
+    volumes:
+      - ../config:/app/config:ro      
+networks:
+  evm-event-indexer-network:
+    name: indexer-network
+    driver: bridge

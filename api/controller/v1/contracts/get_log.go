@@ -1,23 +1,29 @@
 package contracts
 
 import (
+	"encoding/hex"
 	"evm_event_indexer/api/middleware"
+	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service/model"
 	logRepo "evm_event_indexer/service/repo/eventlog"
 	"net/http"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 )
 
 type (
 	GetLogReq struct {
-		Address   string    `form:"address" binding:"required"`
-		StartTime time.Time `form:"start_time" binding:"required"`
-		EndTime   time.Time `form:"end_time" binding:"required"`
-		Page      int32     `form:"page" binding:"required,min=1"`
-		Size      int32     `form:"size" binding:"required,min=1,max=100"`
+		ChainType enum.ChainType `form:"chain_type" binding:"required"`
+		Address   string         `form:"address" binding:"required"`
+		StartTime string         `form:"start_time" binding:"required"`
+		EndTime   string         `form:"end_time" binding:"required"`
+		Page      int32          `form:"page" binding:"required,min=1"`
+		Size      int32          `form:"size" binding:"required,min=1,max=100"`
+		OrderBy   int8           `form:"order_by"`
+		Desc      bool           `form:"desc"`
 	}
 
 	GetLogRes struct {
@@ -26,16 +32,18 @@ type (
 	}
 
 	EventLog struct {
-		ID              int64     `json:"id"`
-		BlockNumber     uint64    `json:"block_number"`
-		BlockHash       string    `json:"block_hash"`
-		TransactionHash string    `json:"transaction_hash"`
-		Address         string    `json:"address"`
-		Topics          []string  `json:"topics"`
-		Data            []byte    `json:"data"`
-		TxIndex         int32     `json:"tx_index"`
-		LogIndex        int32     `json:"log_index"`
-		BlockTimestamp  time.Time `json:"block_timestamp"`
+		ID              int64               `json:"id"`
+		ChainType       enum.ChainType      `json:"chain_type"`
+		BlockNumber     uint64              `json:"block_number"`
+		BlockHash       string              `json:"block_hash"`
+		TransactionHash string              `json:"transaction_hash"`
+		Address         string              `json:"address"`
+		Topics          []common.Hash       `json:"topics"`
+		Data            string              `json:"data"`
+		TxIndex         int32               `json:"tx_index"`
+		LogIndex        int32               `json:"log_index"`
+		DecodedEvent    *model.DecodedEvent `json:"decoded_event"`
+		BlockTimestamp  time.Time           `json:"block_timestamp"`
 	}
 )
 
@@ -51,10 +59,33 @@ func GetLog(c *gin.Context) {
 		return
 	}
 
+	// Validate address format
+	if !common.IsHexAddress(req.Address) {
+		c.Error(errors.API_INVALID_PARAM.Wrap(nil, "invalid address format"))
+		return
+	}
+
+	// Parse start_time (RFC3339 format)
+	startTime, err := time.Parse(time.RFC3339, req.StartTime)
+	if err != nil {
+		c.Error(errors.API_INVALID_PARAM.Wrap(err, "invalid start_time format, expected RFC3339"))
+		return
+	}
+
+	// Parse end_time (RFC3339 format)
+	endTime, err := time.Parse(time.RFC3339, req.EndTime)
+	if err != nil {
+		c.Error(errors.API_INVALID_PARAM.Wrap(err, "invalid end_time format, expected RFC3339"))
+		return
+	}
+
 	param := &logRepo.GetLogParam{
+		ChainType: req.ChainType,
 		Address:   req.Address,
-		StartTime: req.StartTime,
-		EndTime:   req.EndTime,
+		StartTime: startTime,
+		EndTime:   endTime,
+		OrderBy:   req.OrderBy,
+		Desc:      req.Desc,
 		Pagination: &model.Pagination{
 			Page: req.Page,
 			Size: req.Size,
@@ -85,14 +116,16 @@ func GetLog(c *gin.Context) {
 	for i, log := range logs {
 		res.Logs[i] = &EventLog{
 			ID:              log.ID,
+			ChainType:       log.ChainType,
 			BlockNumber:     log.BlockNumber,
 			BlockHash:       log.BlockHash,
 			TransactionHash: log.TxHash,
 			Address:         log.Address,
 			Topics:          log.Topics.Array(),
-			Data:            log.Data,
+			Data:            "0x" + hex.EncodeToString(log.Data),
 			LogIndex:        log.LogIndex,
 			TxIndex:         log.TxIndex,
+			DecodedEvent:    log.DecodedEvent,
 			BlockTimestamp:  log.BlockTimestamp,
 		}
 	}

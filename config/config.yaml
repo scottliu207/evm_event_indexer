@@ -1,8 +1,12 @@
 #
-contracts_address:
-  - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+scanner:
+  - address: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    topics:
+      - "Transfer(address,address,uint256)"
+      - "Approval(address,address,uint256)"
+    batch_size: 20
 eth_rpc_http: "http://127.0.0.1:8545"
-eth_rpc_ws: "ws://127.0.0.1:8546"
+eth_rpc_ws: "ws://127.0.0.1:8545"
 log_scanner_interval: "5s"
 reorg_window: 10
 log_level: "debug"

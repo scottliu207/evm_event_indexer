@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/decoder"
+	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/eth"
 	"evm_event_indexer/internal/storage"
 	"fmt"
@@ -18,55 +20,63 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// LogScanner runs a periodic log sync for a specific contract address.
-// It automatically retries with exponential backoff when the scanner stops unexpectedly.
-func LogScanner(address string, topics [][]common.Hash, batchSize int32) {
-	ctx := context.Background()
+var _ Worker = (*Scanner)(nil)
 
-	for {
-		err := func() error {
-			client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
-			if err != nil {
-				return fmt.Errorf("failed to create eth client: %w", err)
-			}
-			defer client.Close()
+type Scanner struct {
+	Address   string
+	Topics    [][]common.Hash
+	BatchSize int32
+}
 
-			return scan(ctx, client, address, topics, batchSize)
-		}()
-
-		if err != nil {
-			slog.Error("scanner error occurred, waiting to retry",
-				slog.Any("err", err),
-				slog.Any("address", address),
-				slog.Any("retry_delay", config.Get().MaxBackoff),
-			)
-			time.Sleep(config.Get().MaxBackoff)
-		}
+func NewScanner(address string, topics [][]common.Hash, batchSize int32) *Scanner {
+	return &Scanner{
+		Address:   address,
+		Topics:    topics,
+		BatchSize: batchSize,
 	}
 }
 
-func scan(ctx context.Context, client *eth.Client, address string, topics [][]common.Hash, batchSize int32) error {
+// Runs a periodic log sync for a specific contract address.
+func (s *Scanner) Run(ctx context.Context) error {
+	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
+	if err != nil {
+		return fmt.Errorf("failed to create eth client: %w", err)
+	}
 
-	ticker := time.NewTicker(config.Get().LogScannerInterval)
-	defer ticker.Stop()
+	defer client.Close()
 
-	for range ticker.C {
-		if err := syncLog(ctx, client, address, topics, batchSize); err != nil {
-			slog.Error("syncLog error occurred",
-				slog.Any("err", err),
-				slog.String("address", address),
-			)
-		}
+	if err := s.scan(ctx, client); err != nil {
+		return fmt.Errorf("scanner error: %w, address: %s", err, s.Address)
 	}
 
 	return nil
 }
 
-func syncLog(ctx context.Context, client *eth.Client, address string, topics [][]common.Hash, batchSize int32) error {
+func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
+
+	ticker := time.NewTicker(config.Get().LogScannerInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := s.syncLog(ctx, client); err != nil {
+				slog.Error("syncLog error",
+					slog.Any("err", err),
+					slog.String("address", s.Address),
+				)
+			}
+		}
+	}
+}
+
+func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	now := time.Now()
 
-	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), address)
+	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), s.Address)
 	if err != nil {
 		return fmt.Errorf("get block sync status error: %w", err)
 	}
@@ -85,10 +95,10 @@ func syncLog(ctx context.Context, client *eth.Client, address string, topics [][
 
 	latestBlock, err := client.GetBlockNumber()
 	if err != nil {
-		return fmt.Errorf("get current block number error for address %s: %w", address, err)
+		return fmt.Errorf("get current block number error for address %s: %w", s.Address, err)
 	}
 
-	toBlock := min(syncBlock+uint64(batchSize), latestBlock)
+	toBlock := min(syncBlock+uint64(s.BatchSize), latestBlock)
 	if syncBlock > toBlock {
 		slog.Info("no new blocks to scan",
 			slog.Any("lastSyncNumber", bc.LastSyncNumber),
@@ -100,11 +110,11 @@ func syncLog(ctx context.Context, client *eth.Client, address string, topics [][
 	eventLogs, err := client.GetLogs(eth.GetLogsParams{
 		FromBlock: syncBlock,
 		ToBlock:   toBlock,
-		Addresses: []common.Address{common.HexToAddress(address)},
-		Topics:    topics,
+		Addresses: []common.Address{common.HexToAddress(s.Address)},
+		Topics:    s.Topics,
 	})
 	if err != nil {
-		return fmt.Errorf("get logs error for address %s from block %d to %d: %w", address, syncBlock, toBlock, err)
+		return fmt.Errorf("get logs error for address %s from block %d to %d: %w", s.Address, syncBlock, toBlock, err)
 	}
 
 	header, err := client.GetHeaderByNumber(toBlock)
@@ -114,26 +124,37 @@ func syncLog(ctx context.Context, client *eth.Client, address string, topics [][
 
 	newSyncNumber := toBlock
 	newSyncHash := header.Hash().Hex()
-
 	logs := make([]*model.Log, len(eventLogs))
 	for i, v := range eventLogs {
-
-		topics := make(model.Topics, len(v.Topics))
-		for j, topic := range v.Topics {
-			topics[j] = topic.Hex()
-		}
-
 		logs[i] = &model.Log{
+			ChainType:      enum.CHOther,
 			Address:        v.Address.Hex(),
 			BlockHash:      v.BlockHash.Hex(),
 			BlockNumber:    v.BlockNumber,
-			Topics:         &topics,
+			Topics:         (*model.Topics)(&v.Topics),
 			TxIndex:        int32(v.TxIndex),
 			LogIndex:       int32(v.Index),
 			TxHash:         v.TxHash.Hex(),
 			Data:           v.Data,
 			BlockTimestamp: time.Unix(int64(v.BlockTimestamp), 0),
 			CreatedAt:      now,
+		}
+
+		// decode event, if decode failed, keep raw data only
+		name, args, err := decoder.Provider.Decode(logs[i])
+		if err != nil {
+			slog.Error("decode event error",
+				slog.Any("err", err),
+				slog.Any("address", s.Address),
+				slog.Any("blockNumber", v.BlockNumber),
+				slog.Any("txHash", v.TxHash.Hex()),
+				slog.Any("logIndex", v.Index),
+			)
+		} else {
+			logs[i].DecodedEvent = &model.DecodedEvent{
+				EventName: name,
+				EventData: args,
+			}
 		}
 	}
 
@@ -146,14 +167,14 @@ func syncLog(ctx context.Context, client *eth.Client, address string, topics [][
 		},
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				Address:        address,
+				Address:        s.Address,
 				LastSyncNumber: newSyncNumber,
 				LastSyncHash:   newSyncHash,
 				UpdatedAt:      now,
 			})
 		},
 	); err != nil {
-		return fmt.Errorf("upsert log error for address %s: %w", address, err)
+		return fmt.Errorf("upsert log error for address %s: %w", s.Address, err)
 	}
 
 	return nil

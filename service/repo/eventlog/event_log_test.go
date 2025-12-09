@@ -37,8 +37,8 @@ func Test_LogRepo(t *testing.T) {
 			BlockHash:   common.Hash{}.String(),
 			BlockNumber: 0,
 			Topics: &model.Topics{
-				"0x123",
-				"0x456",
+				common.HexToHash("0x123"),
+				common.HexToHash("0x456"),
 			},
 			TxIndex:        1,
 			LogIndex:       2,

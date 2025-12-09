@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"evm_event_indexer/api/controller/v1/contracts"
@@ -9,26 +11,35 @@ import (
 
 func Routing(router *gin.Engine) {
 
-	v1 := router.Group("/v1")
+	api := router.Group("/api")
 	{
 
-		// user := v1.Group("/user")
-		// {
-		// 	user.POST("/create", middleware.AuthValidation(), users.Create)
-		// 	// user.GET("/list", middleware.AuthValidation(), userController.List)
-		// 	// user.GET("/get/:id", middleware.AuthValidation(), userController.Get)
-		// }
+		// health check api
+		api.GET("/status", func(ctx *gin.Context) {
+			ctx.Status(http.StatusOK)
+		})
 
-		log := v1.Group("/txn")
+		v1 := api.Group("/v1")
 		{
-			// Add more routes here as needed
-			log.GET("/logs", middleware.AuthValidation(), contracts.GetLog)
-			// get block
-			// get transaction
-			// get receipt
-			// get event log
-			// get event detail
-		}
 
+			// user := v1.Group("/user")
+			// {
+			// 	user.POST("/create", middleware.AuthValidation(), users.Create)
+			// 	// user.GET("/list", middleware.AuthValidation(), userController.List)
+			// 	// user.GET("/get/:id", middleware.AuthValidation(), userController.Get)
+			// }
+
+			log := v1.Group("/txn")
+			{
+				// Add more routes here as needed
+				log.GET("/logs", middleware.AuthValidation(), contracts.GetLog)
+				// get block
+				// get transaction
+				// get receipt
+				// get event log
+				// get event detail
+			}
+
+		}
 	}
 }

@@ -31,3 +31,26 @@ clean:
 .PHONY: run
 run:
 	go run cmd/indexer/main.go
+
+.PHONY: deploy
+deploy:
+	docker run --rm --network indexer-network \
+		-v $(PWD)/contracts:/contracts \
+		-v foundry-svm-cache:/root/.svm \
+		-w /contracts \
+		--entrypoint sh \
+		ghcr.io/foundry-rs/foundry:latest \
+		-c "forge create basic_erc_20.sol:BasicERC20 \
+		--rpc-url http://anvil:8545 \
+		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+		--constructor-args 'MyToken' 'MTK' 1000000"
+
+.PHONY: transfer
+transfer:
+	docker run --rm --network indexer-network \
+		--entrypoint cast \
+		ghcr.io/foundry-rs/foundry:latest \
+		send --rpc-url http://anvil:8545 \
+		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+		0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
+		--value 1ether

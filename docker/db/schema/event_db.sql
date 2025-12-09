@@ -5,6 +5,7 @@ USE `event_db`;
 -- event log
 CREATE TABLE `event_db`.`event_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
+  `chain_type` tinyint unsigned NOT NULL COMMENT 'chain type',
   `address` varchar(128) NOT NULL COMMENT 'contract address',
   `block_hash` varchar(128) NOT NULL COMMENT 'block hash',
   `block_number` bigint unsigned NOT NULL COMMENT 'block number',
@@ -13,6 +14,7 @@ CREATE TABLE `event_db`.`event_log` (
   `log_index` bigint unsigned NOT NULL COMMENT 'log index',
   `data` blob COMMENT 'data',
   `topics` json NOT NULL COMMENT 'topics',
+  `decoded_event` json NOT NULL COMMENT 'decoded event',
   `block_timestamp` timestamp NOT NULL COMMENT 'block timestamp',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created at',
   PRIMARY KEY (`id`),

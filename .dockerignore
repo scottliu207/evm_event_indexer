@@ -1,0 +1,35 @@
+# Dependencies
+vendor/
+
+# Build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+indexer
+
+# Test files
+*_test.go
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+docker/
+
+# Misc
+*.md
+*.log
+.env*
+cache/
+out/

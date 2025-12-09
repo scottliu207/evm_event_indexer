@@ -25,7 +25,7 @@ case "$1" in
   up)
     echo "啟動 docker-compose (檔案: $COMPOSE_FILE)..."
     docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down -v
-    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d
+    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --build
     echo "服務已啟動"
     ;;
   down)

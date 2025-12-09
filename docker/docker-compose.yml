@@ -22,7 +22,8 @@ services:
 # local Ethereum node for testing
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 31337
+    entrypoint: anvil
+    command: ["--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
     ports:
       - "8545:8545"
     networks:
@@ -62,4 +63,5 @@ services:
       - ../config:/app/config:ro      
 networks:
   evm-event-indexer-network:
+    name: indexer-network
     driver: bridge

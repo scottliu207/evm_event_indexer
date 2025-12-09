@@ -56,8 +56,8 @@ func main() {
 	fmt.Println("Starting background services...")
 	bgManager.Start(ctx)
 
+	fmt.Println("Background services started")
 	defer bgManager.Stop()
-	fmt.Println("Background services stopped")
 
 	// wait for signal
 	quit := make(chan os.Signal, 1)

@@ -1,4 +1,7 @@
 /out
 /generated
 /cache
+/contracts/out
+/contracts/build-info
+/contracts/cache
 *.env

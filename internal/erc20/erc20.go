@@ -50,7 +50,23 @@ func (i *ERC20Service) Deploy(initialSupply *big.Int) (*DeployResult, error) {
 	}, nil
 }
 
-func (i *ERC20Service) GetBalance(ctx context.Context, contractAddr common.Address, ownerAddr common.Address) (*big.Int, error) {
+func (i *ERC20Service) Address() (common.Address, error) {
+	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("new transactor failed: %w", err)
+	}
+	return auth.From, nil
+}
+
+func (i *ERC20Service) GetBalance(ctx context.Context, contractAddr common.Address) (*big.Int, error) {
+	ownerAddr, err := i.Address()
+	if err != nil {
+		return nil, err
+	}
+	return i.GetBalanceOf(ctx, contractAddr, ownerAddr)
+}
+
+func (i *ERC20Service) GetBalanceOf(ctx context.Context, contractAddr common.Address, ownerAddr common.Address) (*big.Int, error) {
 	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("get balance failed: %w", err)
@@ -59,44 +75,64 @@ func (i *ERC20Service) GetBalance(ctx context.Context, contractAddr common.Addre
 	return contract.Instance.BalanceOf(&bind.CallOpts{Context: ctx}, ownerAddr)
 }
 
-func (i *ERC20Service) Transfer(ctx context.Context, addr common.Address, amount *big.Int) (*types.Transaction, error) {
+func (i *ERC20Service) Transfer(ctx context.Context, contractAddr common.Address, to common.Address, amount *big.Int) (*types.Transaction, error) {
 	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
+	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(addr, i.c.Client)
+	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
 
-	return contract.Instance.Transfer(auth, addr, amount)
+	return contract.Instance.Transfer(auth, to, amount)
 }
 
-func (i *ERC20Service) Approve(ctx context.Context, addr common.Address, amount *big.Int) (*types.Transaction, error) {
+func (i *ERC20Service) Approve(ctx context.Context, contractAddr common.Address, spender common.Address, amount *big.Int) (*types.Transaction, error) {
 	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
+	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(addr, i.c.Client)
+	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
 
-	return contract.Instance.Approve(auth, addr, amount)
+	return contract.Instance.Approve(auth, spender, amount)
 }
 
-func (i *ERC20Service) TransferFrom(ctx context.Context, addr common.Address, from common.Address, to common.Address, amount *big.Int) (*types.Transaction, error) {
+func (i *ERC20Service) TransferFrom(ctx context.Context, contractAddr common.Address, from common.Address, to common.Address, amount *big.Int) (*types.Transaction, error) {
 	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
+	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(addr, i.c.Client)
+	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
 
 	return contract.Instance.TransferFrom(auth, from, to, amount)
+}
+
+func (i *ERC20Service) GetAllowance(ctx context.Context, contractAddr common.Address, spender common.Address) (*big.Int, error) {
+	owner, err := i.Address()
+	if err != nil {
+		return nil, err
+	}
+	return i.GetAllowanceOf(ctx, contractAddr, owner, spender)
+}
+
+func (i *ERC20Service) GetAllowanceOf(ctx context.Context, contractAddr common.Address, owner common.Address, spender common.Address) (*big.Int, error) {
+	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	if err != nil {
+		return nil, fmt.Errorf("new contract failed: %w", err)
+	}
+
+	return contract.Instance.Allowance(&bind.CallOpts{Context: ctx}, owner, spender)
 }

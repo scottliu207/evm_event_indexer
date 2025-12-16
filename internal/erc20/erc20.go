@@ -28,7 +28,7 @@ func NewERC20Service(client *internalEth.Client, privateKey string) *ERC20Servic
 	return &ERC20Service{c: client, privateKey: privateKey}
 }
 
-func (i *ERC20Service) Deploy() (*DeployResult, error) {
+func (i *ERC20Service) Deploy(initialSupply *big.Int) (*DeployResult, error) {
 
 	transactor, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
@@ -39,7 +39,7 @@ func (i *ERC20Service) Deploy() (*DeployResult, error) {
 	transactor.Value = big.NewInt(0)
 
 	// 3) Deploy the contract
-	addr, tx, _, err := erc20.DeployBasicErc20(transactor, i.c.Client, "MyToken", "MTK", big.NewInt(1000000))
+	addr, tx, _, err := erc20.DeployBasicErc20(transactor, i.c.Client, "MyToken", "MTK", initialSupply)
 	if err != nil {
 		return nil, fmt.Errorf("deploy failed: %w", err)
 	}
@@ -50,13 +50,13 @@ func (i *ERC20Service) Deploy() (*DeployResult, error) {
 	}, nil
 }
 
-func (i *ERC20Service) GetBalance(ctx context.Context, addr common.Address) (*big.Int, error) {
-	contract, err := internalEth.NewERC20(addr, i.c.Client)
+func (i *ERC20Service) GetBalance(ctx context.Context, contractAddr common.Address, ownerAddr common.Address) (*big.Int, error) {
+	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("get balance failed: %w", err)
 	}
 
-	return contract.Instance.BalanceOf(&bind.CallOpts{Context: ctx}, addr)
+	return contract.Instance.BalanceOf(&bind.CallOpts{Context: ctx}, ownerAddr)
 }
 
 func (i *ERC20Service) Transfer(ctx context.Context, addr common.Address, amount *big.Int) (*types.Transaction, error) {

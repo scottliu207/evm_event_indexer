@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"evm_event_indexer/internal/config"
-	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"strings"
@@ -17,7 +16,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	var params []any
 	var placeholder = make([]string, len(log))
 	sql.WriteString(" INSERT INTO `event_db`.`event_log`( ")
-	sql.WriteString("	`chain_type`, ")
+	sql.WriteString("	`chain_id`, ")
 	sql.WriteString("	`address`, ")
 	sql.WriteString("	`block_hash`, ")
 	sql.WriteString("	`block_number`, ")
@@ -33,7 +32,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 
 	for i, v := range log {
 		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?,?,?) "
-		params = append(params, v.ChainType)
+		params = append(params, v.ChainID)
 		params = append(params, v.Address)
 		params = append(params, v.BlockHash)
 		params = append(params, v.BlockNumber)
@@ -65,7 +64,7 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 }
 
 type GetLogParam struct {
-	ChainType      enum.ChainType
+	ChainID        int64
 	Address        string
 	OrderBy        int8 // 1:block_timestamp 2:block_number
 	StartTime      time.Time
@@ -83,7 +82,7 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 
 	sql.WriteString(" SELECT ")
 	sql.WriteString("   id,")
-	sql.WriteString("   chain_type,")
+	sql.WriteString("   chain_id,")
 	sql.WriteString("   address,")
 	sql.WriteString("   block_hash,")
 	sql.WriteString("   block_number,")
@@ -98,9 +97,9 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
 
-	if filter.ChainType != 0 {
-		wheres = append(wheres, " chain_type = ? ")
-		params = append(params, filter.ChainType)
+	if filter.ChainID != 0 {
+		wheres = append(wheres, " chain_id = ? ")
+		params = append(params, filter.ChainID)
 	}
 
 	wheres = append(wheres, " address = ? ")
@@ -155,7 +154,7 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 		log := new(model.Log)
 		if err := rows.Scan(
 			&log.ID,
-			&log.ChainType,
+			&log.ChainID,
 			&log.Address,
 			&log.BlockHash,
 			&log.BlockNumber,
@@ -193,9 +192,9 @@ func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	sql.WriteString(" FROM event_db.event_log ")
 	sql.WriteString(" WHERE ")
 
-	if filter.ChainType != 0 {
-		wheres = append(wheres, " chain_type = ? ")
-		params = append(params, filter.ChainType)
+	if filter.ChainID != 0 {
+		wheres = append(wheres, " chain_id = ? ")
+		params = append(params, filter.ChainID)
 	}
 
 	wheres = append(wheres, " address = ? ")

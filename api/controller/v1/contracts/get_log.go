@@ -3,7 +3,6 @@ package contracts
 import (
 	"encoding/hex"
 	"evm_event_indexer/api/middleware"
-	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service/model"
 	logRepo "evm_event_indexer/service/repo/eventlog"
@@ -16,14 +15,15 @@ import (
 
 type (
 	GetLogReq struct {
-		ChainType enum.ChainType `form:"chain_type" binding:"required"`
-		Address   string         `form:"address" binding:"required"`
-		StartTime string         `form:"start_time" binding:"required"`
-		EndTime   string         `form:"end_time" binding:"required"`
-		Page      int32          `form:"page" binding:"required,min=1"`
-		Size      int32          `form:"size" binding:"required,min=1,max=100"`
-		OrderBy   int8           `form:"order_by"`
-		Desc      bool           `form:"desc"`
+		ChainID   int64    `form:"chain_id" binding:"required"`
+		Topics    []string `form:"topics" binding:"required,dive,hex"`
+		Address   string   `form:"address" binding:"required"`
+		StartTime string   `form:"start_time" binding:"required"`
+		EndTime   string   `form:"end_time" binding:"required"`
+		Page      int32    `form:"page" binding:"required,min=1"`
+		Size      int32    `form:"size" binding:"required,min=1,max=100"`
+		OrderBy   int8     `form:"order_by"`
+		Desc      bool     `form:"desc"`
 	}
 
 	GetLogRes struct {
@@ -33,7 +33,7 @@ type (
 
 	EventLog struct {
 		ID              int64               `json:"id"`
-		ChainType       enum.ChainType      `json:"chain_type"`
+		ChainID         int64               `json:"chain_id"`
 		BlockNumber     uint64              `json:"block_number"`
 		BlockHash       string              `json:"block_hash"`
 		TransactionHash string              `json:"transaction_hash"`
@@ -80,7 +80,7 @@ func GetLog(c *gin.Context) {
 	}
 
 	param := &logRepo.GetLogParam{
-		ChainType: req.ChainType,
+		ChainID:   req.ChainID,
 		Address:   req.Address,
 		StartTime: startTime,
 		EndTime:   endTime,
@@ -116,7 +116,7 @@ func GetLog(c *gin.Context) {
 	for i, log := range logs {
 		res.Logs[i] = &EventLog{
 			ID:              log.ID,
-			ChainType:       log.ChainType,
+			ChainID:         log.ChainID,
 			BlockNumber:     log.BlockNumber,
 			BlockHash:       log.BlockHash,
 			TransactionHash: log.TxHash,

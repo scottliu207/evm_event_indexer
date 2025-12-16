@@ -12,11 +12,12 @@ import (
 func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) error {
 	const sql = `
 	INSERT INTO event_db.block_sync(
+		chain_id, 
 		address, 
 		last_sync_number, 
 		last_sync_hash, 
 		updated_at 
-	) VALUES (?,?,?,?) 
+	) VALUES (?,?,?,?,?) 
 	ON DUPLICATE KEY UPDATE 
 		last_sync_number = VALUES(last_sync_number), 
 		last_sync_hash = VALUES(last_sync_hash), 
@@ -24,6 +25,7 @@ func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) 
 	`
 	var params []any
 
+	params = append(params, blockSync.ChainID)
 	params = append(params, blockSync.Address)
 	params = append(params, blockSync.LastSyncNumber)
 	params = append(params, blockSync.LastSyncHash)
@@ -37,18 +39,20 @@ func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) 
 	return nil
 }
 
-func GetBlockSync(ctx context.Context, db *sql.DB, address string) (res *model.BlockSync, err error) {
+func GetBlockSync(ctx context.Context, db *sql.DB, chainID int64, address string) (res *model.BlockSync, err error) {
 	var sql strings.Builder
 	sql.WriteString(" SELECT ")
+	sql.WriteString("  `chain_id`, ")
 	sql.WriteString("  `address`, ")
 	sql.WriteString("  `last_sync_number`, ")
 	sql.WriteString("  `last_sync_hash`, ")
 	sql.WriteString("  `updated_at` ")
 	sql.WriteString(" FROM `event_db`.`block_sync` ")
 	sql.WriteString(" WHERE ")
-	sql.WriteString("  `address` = ? ")
+	sql.WriteString("  `chain_id` = ? ")
+	sql.WriteString("  AND `address` = ? ")
 
-	row, err := db.QueryContext(ctx, sql.String(), address)
+	row, err := db.QueryContext(ctx, sql.String(), chainID, address)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +61,7 @@ func GetBlockSync(ctx context.Context, db *sql.DB, address string) (res *model.B
 	for row.Next() {
 		res = new(model.BlockSync)
 		if err := row.Scan(
+			&res.ChainID,
 			&res.Address,
 			&res.LastSyncNumber,
 			&res.LastSyncHash,

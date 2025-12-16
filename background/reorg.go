@@ -18,46 +18,8 @@ import (
 
 var _ Worker = (*ReorgConsumer)(nil)
 
-type ReorgConsumer struct{}
-
-func NewReorgConsumer() *ReorgConsumer {
-	return &ReorgConsumer{}
-}
-
-func (r *ReorgConsumer) Run(ctx context.Context) error {
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case msg := <-reorgChan:
-			// exceed retry limit, reset retry counter and skip the message
-			if msg.Retry > config.Get().Retry {
-				slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
-				continue
-			}
-
-			if err := r.reorgHandler(ctx, msg.LastSyncNumber, msg.ContractAddress); err != nil {
-				slog.Error("failed to handle reorg", slog.Any("err", err))
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
-					// backoff
-					time.Sleep(msg.Backoff)
-					msg.Retry++
-					msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
-
-					// requeue
-					ReorgProducer(msg)
-					continue
-				}
-			}
-		}
-	}
-}
-
 type reorgMsg struct {
+	RpcHttp         string
 	ContractAddress string
 	LastSyncNumber  uint64
 	Backoff         time.Duration
@@ -82,13 +44,50 @@ func ReorgProducer(msg *reorgMsg) {
 	slog.Error("reorg channel is full, msg dropped", slog.Any("msg", msg))
 }
 
-func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, lastSyncNumber uint64, address string) error {
+type ReorgConsumer struct{}
+
+func NewReorgConsumer() *ReorgConsumer {
+	return &ReorgConsumer{}
+}
+
+func (r *ReorgConsumer) Run(ctx context.Context) error {
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-reorgChan:
+			// exceed retry limit, reset retry counter and skip the message
+			if msg.Retry > config.Get().Retry {
+				slog.Error("failed to handle reorg, exceed retry limit", slog.Any("retry", msg.Retry))
+				continue
+			}
+
+			if err := r.reorgHandler(ctx, msg.RpcHttp, msg.LastSyncNumber, msg.ContractAddress); err != nil {
+				slog.Error("failed to handle reorg", slog.Any("err", err))
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+					// backoff
+					time.Sleep(msg.Backoff)
+					msg.Retry++
+					msg.Backoff = min(msg.Backoff*2, config.Get().MaxBackoff)
+
+					// requeue
+					ReorgProducer(msg)
+					continue
+				}
+			}
+		}
+	}
+}
+
+func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, lastSyncNumber uint64, address string) error {
 	ctx, cancel := context.WithTimeout(parentCtx, config.Get().Timeout)
 	defer cancel()
 
-	// lock by address
-
-	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
+	client, err := eth.NewClient(ctx, rpcHttp)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}

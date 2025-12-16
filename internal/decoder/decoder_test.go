@@ -3,7 +3,6 @@ package decoder_test
 import (
 	"evm_event_indexer/internal/decoder/erc20"
 	"evm_event_indexer/internal/decoder/provider"
-	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/service/model"
 	"math/big"
 	"testing"
@@ -18,7 +17,7 @@ func Test_Decoder(t *testing.T) {
 	decoder.Register("Transfer(address,address,uint256)", &erc20.TransferDecoder{})
 	// decoder.Register("Approval(address,address,uint256)", &erc20.ApprovalDecoder{})
 	name, args, err := decoder.Decode(&model.Log{
-		ChainType:      enum.CHOther,
+		ChainID:        31337,
 		Address:        "0x5FbDB2315678afecb367f032d93F642f64180aa3",
 		BlockHash:      "0x55e7e0a0bf7cca093b1d43eba319681b94e4439298a47e8e179616769095a9dd",
 		BlockNumber:    2,

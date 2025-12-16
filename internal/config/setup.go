@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -9,6 +11,10 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 )
+
+func Get() *Config {
+	return config
+}
 
 func LoadConfig(path string) {
 	if path == "" {
@@ -64,8 +70,16 @@ func LoadConfig(path string) {
 	); err != nil {
 		panic(fmt.Errorf("unable to decode config into struct, because %v", err.Error()))
 	}
-}
 
-func Get() *Config {
-	return config
+	// load scanner from json file
+	scanner, err := os.ReadFile(config.ScannerPath)
+	if err != nil {
+		panic(fmt.Errorf("unable to read scanner file, because %v", err.Error()))
+	}
+
+	// store into config
+	if err := json.Unmarshal(scanner, &config.Scanners); err != nil {
+		panic(fmt.Errorf("unable to unmarshal scanner file, because %v", err.Error()))
+	}
+
 }

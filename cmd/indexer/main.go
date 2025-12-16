@@ -32,21 +32,27 @@ func main() {
 	// register api server
 	bgManager.AddWorker(background.NewAPIServer())
 
-	// register subscription
-	bgManager.AddWorker(background.NewSubscription())
-
 	// register reorg consumer
 	bgManager.AddWorker(background.NewReorgConsumer())
 
-	// register scanners
-	for _, scan := range config.Get().Scanner {
+	// register scanners and subscriptions
+	for _, scan := range config.Get().Scanners {
 
-		topics := []common.Hash{}
-		for _, topic := range scan.Topics {
-			topics = append(topics, common.Hash(crypto.Keccak256([]byte(topic))))
+		addresses := []string{}
+		for _, address := range scan.Addresses {
+			addresses = append(addresses, address.Address)
+			topics := []common.Hash{}
+
+			for _, topic := range address.Topics {
+				topics = append(topics, common.Hash(crypto.Keccak256([]byte(topic))))
+			}
+
+			// register scanner, each contract has its own scanner
+			bgManager.AddWorker(background.NewScanner(scan.RpcHTTP, address.Address, [][]common.Hash{topics}, scan.BatchSize))
 		}
 
-		bgManager.AddWorker(background.NewScanner(scan.Address, [][]common.Hash{topics}, scan.BatchSize))
+		// register subscription, addresses on the same chain share the same subscription
+		bgManager.AddWorker(background.NewSubscription(scan.RpcHTTP, scan.RpcWS, addresses))
 	}
 
 	// global context

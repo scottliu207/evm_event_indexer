@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	internalCnf "evm_event_indexer/internal/config"
 	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/testutil"
 	"evm_event_indexer/service/model"
 	"os"
 
@@ -21,7 +22,7 @@ import (
 var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
-	internalCnf.LoadConfig("../../../config/config.yaml")
+	testutil.SetupTestConfig()
 	internalStorage.InitDB()
 
 	os.Exit(m.Run())
@@ -34,6 +35,7 @@ func Test_TxUpsertBlock(t *testing.T) {
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 	err := utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
+			ChainID:        31337,
 			Address:        addr,
 			LastSyncNumber: 10,
 			LastSyncHash:   common.Address{}.Hex(),
@@ -42,7 +44,7 @@ func Test_TxUpsertBlock(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	res, err := blocksync.GetBlockSync(ctx, db, addr)
+	res, err := blocksync.GetBlockSync(ctx, db, 31337, addr)
 	assert.NoError(t, err)
 	assert.Equal(t, addr, res.Address)
 	assert.Equal(t, uint64(10), res.LastSyncNumber)

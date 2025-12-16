@@ -3,7 +3,6 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"evm_event_indexer/internal/enum"
 	"fmt"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 type (
 	Log struct {
 		ID             int64
-		ChainType      enum.ChainType
+		ChainID        int64
 		Address        string
 		BlockHash      string
 		BlockNumber    uint64

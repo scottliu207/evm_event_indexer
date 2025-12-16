@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/decoder"
-	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/eth"
 	"evm_event_indexer/internal/storage"
 	"fmt"
@@ -23,13 +22,15 @@ import (
 var _ Worker = (*Scanner)(nil)
 
 type Scanner struct {
+	rpcHTTP   string
 	Address   string
 	Topics    [][]common.Hash
 	BatchSize int32
 }
 
-func NewScanner(address string, topics [][]common.Hash, batchSize int32) *Scanner {
+func NewScanner(rcpHttp string, address string, topics [][]common.Hash, batchSize int32) *Scanner {
 	return &Scanner{
+		rpcHTTP:   rcpHttp,
 		Address:   address,
 		Topics:    topics,
 		BatchSize: batchSize,
@@ -38,7 +39,7 @@ func NewScanner(address string, topics [][]common.Hash, batchSize int32) *Scanne
 
 // Runs a periodic log sync for a specific contract address.
 func (s *Scanner) Run(ctx context.Context) error {
-	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
+	client, err := eth.NewClient(ctx, s.rpcHTTP)
 	if err != nil {
 		return fmt.Errorf("failed to create eth client: %w", err)
 	}
@@ -76,7 +77,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	now := time.Now()
 
-	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), s.Address)
+	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), client.GetChainID().Int64(), s.Address)
 	if err != nil {
 		return fmt.Errorf("get block sync status error: %w", err)
 	}
@@ -99,7 +100,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 	}
 
 	toBlock := min(syncBlock+uint64(s.BatchSize), latestBlock)
-	if syncBlock > toBlock {
+	if syncBlock >= toBlock {
 		slog.Info("no new blocks to scan",
 			slog.Any("lastSyncNumber", bc.LastSyncNumber),
 			slog.Any("latestBlock", latestBlock),
@@ -127,7 +128,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 	logs := make([]*model.Log, len(eventLogs))
 	for i, v := range eventLogs {
 		logs[i] = &model.Log{
-			ChainType:      enum.CHOther,
+			ChainID:        client.GetChainID().Int64(),
 			Address:        v.Address.Hex(),
 			BlockHash:      v.BlockHash.Hex(),
 			BlockNumber:    v.BlockNumber,

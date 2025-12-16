@@ -2,10 +2,11 @@ package config_test
 
 import (
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/testutil"
 	"testing"
 )
 
 func TestLoadConfig(t *testing.T) {
-	config.LoadConfig("../../config/config.yaml")
+	testutil.SetupTestConfig()
 	t.Log(config.Get())
 }

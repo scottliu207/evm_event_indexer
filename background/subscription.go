@@ -18,10 +18,18 @@ import (
 
 var _ Worker = (*Subscription)(nil)
 
-type Subscription struct{}
+type Subscription struct {
+	rpcWS   string
+	rpcHTTP string
+	address []string
+}
 
-func NewSubscription() *Subscription {
-	return &Subscription{}
+func NewSubscription(rpcHTTP string, rpcWS string, address []string) *Subscription {
+	return &Subscription{
+		rpcHTTP: rpcHTTP,
+		rpcWS:   rpcWS,
+		address: address,
+	}
 }
 
 func (s *Subscription) Run(ctx context.Context) error {
@@ -30,7 +38,7 @@ func (s *Subscription) Run(ctx context.Context) error {
 
 		err := func() error {
 			headers := make(chan *types.Header)
-			client, err := eth.NewClient(ctx, config.Get().EthRpcWS)
+			client, err := eth.NewClient(ctx, s.rpcWS)
 			if err != nil {
 				return err
 			}
@@ -70,12 +78,12 @@ func (s *Subscription) Run(ctx context.Context) error {
 
 func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
 
-	if len(config.Get().Scanner) == 0 {
+	if len(config.Get().Scanners) == 0 {
 		slog.Warn("no contract addresses configured, skip subscription reorg check")
 		return nil
 	}
 
-	client, err := eth.NewClient(ctx, config.Get().EthRpcHTTP)
+	client, err := eth.NewClient(ctx, s.rpcWS)
 	if err != nil {
 		return err
 	}
@@ -97,20 +105,15 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
-			addresses := []string{}
-			for _, scanner := range config.Get().Scanner {
-				addresses = append(addresses, scanner.Address)
-			}
-
 			// get last sync block number
-			bcMap, err := blocksync.GetBlockSyncMap(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), addresses)
+			bcMap, err := blocksync.GetBlockSyncMap(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), s.address)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)
 			}
 
-			for _, addr := range config.Get().Scanner {
-				bc, ok := bcMap[addr.Address]
+			for _, addr := range s.address {
+				bc, ok := bcMap[addr]
 				if !ok || bc == nil || bc.LastSyncNumber == 0 || bc.LastSyncHash == "" {
 					slog.Warn("no block sync found, skipping reorg process", slog.Any("address", addr))
 					continue
@@ -131,7 +134,8 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 				ReorgProducer(&reorgMsg{
 					LastSyncNumber:  bc.LastSyncNumber,
 					Backoff:         config.Get().Backoff,
-					ContractAddress: addr.Address,
+					ContractAddress: addr,
+					RpcHttp:         s.rpcHTTP,
 					Retry:           0,
 				})
 

@@ -7,6 +7,7 @@ import (
 
 	internalCnf "evm_event_indexer/internal/config"
 	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/testutil"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/eventlog"
 	"evm_event_indexer/utils"
@@ -20,14 +21,14 @@ import (
 var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
-	internalCnf.LoadConfig("../../../config/config.yaml")
+	testutil.SetupTestConfig()
 	internalStorage.InitDB()
 
 	os.Exit(m.Run())
 }
 
 func Test_LogRepo(t *testing.T) {
-	internalCnf.LoadConfig("../../../config/config.yaml")
+	testutil.SetupTestConfig()
 	cnf := internalCnf.Get()
 	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"

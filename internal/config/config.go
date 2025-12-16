@@ -6,14 +6,20 @@ import (
 )
 
 type Config struct {
-	// ContractsAddress []string `yaml:"contracts_address"`
-	Scanner []struct {
-		Address   string   `yaml:"address"`
-		Topics    []string `yaml:"topics"`
-		BatchSize int32    `yaml:"batch_size"`
-	} `yaml:"scanner"`
-	EthRpcHTTP         string        `yaml:"eth_rpc_http"`
-	EthRpcWS           string        `yaml:"eth_rpc_ws"`
+	ScannerPath string     `yaml:"scanner_path"`
+	Scanners    []struct { // json file, should located in the same directory as the config file
+		RpcHTTP   string `json:"rpc_http"`
+		RpcWS     string `json:"rpc_ws"`
+		BatchSize int32  `json:"batch_size"`
+		Addresses []struct {
+			Address string   `json:"address"`
+			Topics  []string `json:"topics"`
+		} `json:"addresses"`
+	}
+	Decoders []struct {
+		Name      string `yaml:"name"`
+		Signature string `yaml:"signature"`
+	} `yaml:"decoders"`
 	LogScannerInterval time.Duration `yaml:"log_scanner_interval"`
 	ReorgWindow        int32         `yaml:"reorg_window"`
 	LogLevel           string        `yaml:"log_level"`
@@ -54,16 +60,30 @@ type mysql struct {
 var config = new(Config)
 
 func (c Config) Validate() error {
-	if len(c.Scanner) == 0 {
+	if len(c.Scanners) == 0 {
 		return fmt.Errorf("scanner is required")
 	}
 
-	if c.EthRpcHTTP == "" {
-		return fmt.Errorf("eth_rpc_http is required")
-	}
+	for _, scanner := range c.Scanners {
+		if scanner.RpcHTTP == "" {
+			return fmt.Errorf("scanner.rpc_http is required")
+		}
+		if scanner.RpcWS == "" {
+			return fmt.Errorf("scanner.rpc_ws is required")
+		}
+		if len(scanner.Addresses) == 0 {
+			return fmt.Errorf("scanner.address is required")
+		}
 
-	if c.EthRpcWS == "" {
-		return fmt.Errorf("eth_rpc_ws is required")
+		for _, address := range scanner.Addresses {
+			if address.Address == "" {
+				return fmt.Errorf("scanner.address is required")
+			}
+		}
+
+		if scanner.BatchSize == 0 {
+			return fmt.Errorf("scanner.batch_size is required")
+		}
 	}
 
 	if c.LogScannerInterval == 0 {

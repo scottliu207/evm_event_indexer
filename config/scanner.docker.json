@@ -1,0 +1,13 @@
+[
+    {
+        "rpc_http": "http://anvil:8545",
+        "rpc_ws": "ws://anvil:8545",
+        "batch_size": 20,
+        "addresses": [
+            {
+                "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+                "topics": ["Transfer(address,address,uint256)", "Approval(address,address,uint256)"]
+            }
+        ]
+    }
+]

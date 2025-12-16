@@ -39,18 +39,21 @@ deploy:
 		-v foundry-svm-cache:/root/.svm \
 		-w /contracts \
 		--entrypoint sh \
-		ghcr.io/foundry-rs/foundry:latest \
+		ghcr.io/foundry-rs/foundry:stable \
 		-c "forge create basic_erc_20.sol:BasicERC20 \
 		--rpc-url http://anvil:8545 \
 		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-		--constructor-args 'MyToken' 'MTK' 1000000"
+		--broadcast \
+		--constructor-args 'MyToken' 'MTK' 100000000000000000000" \
 
 .PHONY: transfer
 transfer:
 	docker run --rm --network indexer-network \
 		--entrypoint cast \
-		ghcr.io/foundry-rs/foundry:latest \
+		ghcr.io/foundry-rs/foundry:stable \
 		send --rpc-url http://anvil:8545 \
 		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+		0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+		"transfer(address,uint256)" \
 		0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
-		--value 1ether
+		1000000000000000000

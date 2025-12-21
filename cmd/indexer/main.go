@@ -4,6 +4,7 @@ import (
 	"context"
 	"evm_event_indexer/background"
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/decoder"
 	"evm_event_indexer/internal/slog"
 	"evm_event_indexer/internal/storage"
 	"fmt"
@@ -17,14 +18,24 @@ import (
 )
 
 func main() {
-	fmt.Println("Infrastructure initialization started.")
+	fmt.Println("starting to initialize infrastructure...")
 	initInfra()
-	fmt.Println("Infrastructure initialization completed, waiting for 10 seconds...")
-	time.Sleep(10 * time.Second)
+	fmt.Println("Infrastructure initialization completed")
 
-	fmt.Println("Initializing database...")
-	storage.InitDB()
-	fmt.Println("Database initialized")
+	fmt.Println("starting to initialize database...")
+
+	dbManager := storage.Forge()
+
+	defer dbManager.Shutdown()
+
+	if err := dbManager.Init(); err != nil {
+		panic(fmt.Sprintf("failed to init database: %s\n", err))
+	}
+
+	fmt.Println("Database initialization completed")
+
+	fmt.Println("waiting for", config.Get().WaitForStart.String(), "to start services...")
+	time.Sleep(config.Get().WaitForStart)
 
 	// create background manager
 	bgManager := background.NewBGManager()
@@ -78,4 +89,5 @@ func main() {
 func initInfra() {
 	config.LoadConfig("./config/config.yaml")
 	slog.InitSlog()
+	decoder.InitDecoder()
 }

@@ -3,11 +3,10 @@ package background
 import (
 	"context"
 	"evm_event_indexer/internal/config"
+	"evm_event_indexer/service"
 
 	"evm_event_indexer/internal/eth"
-	"evm_event_indexer/internal/storage"
 
-	"evm_event_indexer/service/repo/blocksync"
 	"fmt"
 	"log/slog"
 	"time"
@@ -106,7 +105,7 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
 
 			// get last sync block number
-			bcMap, err := blocksync.GetBlockSyncMap(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), s.address)
+			bcMap, err := service.GetBlockSyncMap(ctx, client.GetChainID().Int64(), s.address)
 			if err != nil {
 				slog.Error("get block sync error", slog.Any("err", err))
 				return fmt.Errorf("get block sync error, %w", err)

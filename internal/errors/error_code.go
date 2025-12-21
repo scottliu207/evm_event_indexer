@@ -45,13 +45,13 @@ func (e Err) Wrap(err error, AdditionTxt ...string) error {
 // Define error codes here
 var (
 	// general error
-	API_INVALID_PARAM = Err{HTTPCode: http.StatusBadRequest, ErrorCode: 1000, Message: "invalid api parameter"}
-	API_TIMEOUT       = Err{HTTPCode: http.StatusRequestTimeout, ErrorCode: 1001, Message: "api timeout"}
+	ErrApiInvalidParam = Err{HTTPCode: http.StatusBadRequest, ErrorCode: 1000, Message: "invalid api parameter"}
+	ErrApiTimeout      = Err{HTTPCode: http.StatusRequestTimeout, ErrorCode: 1001, Message: "api timeout"}
 
 	// account/authorization error
-	ACCOUNT_ALREADY_EXISTS = Err{HTTPCode: http.StatusConflict, ErrorCode: 2000, Message: "account already exists"}
-	ACCOUNT_NOT_FOUND      = Err{HTTPCode: http.StatusNotFound, ErrorCode: 2001, Message: "account not found"}
+	ErrAccountAlreadyExists = Err{HTTPCode: http.StatusConflict, ErrorCode: 2000, Message: "account already exists"}
+	ErrInvalidCredentials   = Err{HTTPCode: http.StatusUnauthorized, ErrorCode: 2001, Message: "invalid credentials"}
 
 	// server error
-	INTERNAL_SERVER_ERROR = Err{HTTPCode: http.StatusInternalServerError, ErrorCode: 3000, Message: "something went wrong"}
+	ErrInternalServerError = Err{HTTPCode: http.StatusInternalServerError, ErrorCode: 3000, Message: "something went wrong"}
 )

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"evm_event_indexer/api/middleware"
 	"evm_event_indexer/internal/errors"
+	"evm_event_indexer/service"
 	"evm_event_indexer/service/model"
 	logRepo "evm_event_indexer/service/repo/eventlog"
 	"net/http"
@@ -47,11 +48,12 @@ type (
 	}
 )
 
+// GetLog retrieves event logs
 func GetLog(c *gin.Context) {
 	res := new(GetLogRes)
 	res.Logs = make([]*EventLog, 0)
 
-	c.Set(middleware.CTX_RESPONSE, res)
+	c.Set(middleware.CtxResponse, res)
 
 	var req GetLogReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -61,21 +63,21 @@ func GetLog(c *gin.Context) {
 
 	// Validate address format
 	if !common.IsHexAddress(req.Address) {
-		c.Error(errors.API_INVALID_PARAM.Wrap(nil, "invalid address format"))
+		c.Error(errors.ErrApiInvalidParam.Wrap(nil, "invalid address format"))
 		return
 	}
 
 	// Parse start_time (RFC3339 format)
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		c.Error(errors.API_INVALID_PARAM.Wrap(err, "invalid start_time format, expected RFC3339"))
+		c.Error(errors.ErrApiInvalidParam.Wrap(err, "invalid start_time format, expected RFC3339"))
 		return
 	}
 
 	// Parse end_time (RFC3339 format)
 	endTime, err := time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
-		c.Error(errors.API_INVALID_PARAM.Wrap(err, "invalid end_time format, expected RFC3339"))
+		c.Error(errors.ErrApiInvalidParam.Wrap(err, "invalid end_time format, expected RFC3339"))
 		return
 	}
 
@@ -92,26 +94,13 @@ func GetLog(c *gin.Context) {
 		},
 	}
 
-	total, err := logRepo.GetTotal(c.Request.Context(), param)
+	logs, total, err := service.GetLogsWithTotal(c.Request.Context(), param)
 	if err != nil {
-		c.Error(errors.INTERNAL_SERVER_ERROR.Wrap(err, "failed to get event log total"))
-		return
-	}
-
-	// no need to proceed if no data found
-	if total == 0 {
-		c.Status(http.StatusOK)
+		c.Error(err)
 		return
 	}
 
 	res.Total = total
-
-	logs, err := logRepo.GetLogs(c.Request.Context(), param)
-	if err != nil {
-		c.Error(errors.INTERNAL_SERVER_ERROR.Wrap(err, "failed to get event logs"))
-		return
-	}
-
 	res.Logs = make([]*EventLog, len(logs))
 	for i, log := range logs {
 		res.Logs[i] = &EventLog{

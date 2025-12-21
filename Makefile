@@ -4,15 +4,16 @@ GEN_DIR = generated
 CONTRACT_NAME = BasicERC20
 PKG = basic_erc_20
 
+# generate go bindings
 .PHONY: gen
 gen: $(GEN_DIR)/$(PKG).go
 
-# 用 forge 編譯出 JSON
+# compile contracts with forge
 $(OUT_DIR)/$(CONTRACT_NAME).sol/$(CONTRACT_NAME).json:
 	@echo "Compiling contracts with Forge..."
 	forge build
 
-# 從 JSON 提取 ABI 和 BIN 並生成 Go binding
+# extract abi and bin from forge output and generate go binding
 $(GEN_DIR)/$(PKG).go: $(OUT_DIR)/$(CONTRACT_NAME).sol/$(CONTRACT_NAME).json
 	@mkdir -p $(GEN_DIR)
 	@echo "Extracting ABI and BIN from Forge output..."
@@ -27,11 +28,12 @@ $(GEN_DIR)/$(PKG).go: $(OUT_DIR)/$(CONTRACT_NAME).sol/$(CONTRACT_NAME).json
 clean:
 	rm -rf $(OUT_DIR) $(GEN_DIR) cache
 
-
+# run indexer service
 .PHONY: run
 run:
 	go run cmd/indexer/main.go
 
+# deploy contract to anvil
 .PHONY: deploy
 deploy:
 	docker run --rm --network indexer-network \
@@ -46,6 +48,8 @@ deploy:
 		--broadcast \
 		--constructor-args 'MyToken' 'MTK' 100000000000000000000" \
 
+
+# transfer tokens to another address
 .PHONY: transfer
 transfer:
 	docker run --rm --network indexer-network \

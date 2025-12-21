@@ -2,17 +2,13 @@ package background
 
 import (
 	"context"
-	"database/sql"
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/decoder"
 	"evm_event_indexer/internal/eth"
-	"evm_event_indexer/internal/storage"
+	"evm_event_indexer/service"
 	"fmt"
 
 	"evm_event_indexer/service/model"
-	"evm_event_indexer/service/repo/blocksync"
-	"evm_event_indexer/service/repo/eventlog"
-	"evm_event_indexer/utils"
 	"log/slog"
 	"time"
 
@@ -77,7 +73,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	now := time.Now()
 
-	bc, err := blocksync.GetBlockSync(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), client.GetChainID().Int64(), s.Address)
+	bc, err := service.GetBlockSync(ctx, client.GetChainID().Int64(), s.Address)
 	if err != nil {
 		return fmt.Errorf("get block sync status error: %w", err)
 	}
@@ -159,22 +155,16 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 		}
 	}
 
-	if err := utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
-		func(ctx context.Context, tx *sql.Tx) error {
-			if len(logs) == 0 {
-				return nil
-			}
-			return eventlog.TxUpsertLog(ctx, tx, logs...)
-		},
-		func(ctx context.Context, tx *sql.Tx) error {
-			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				Address:        s.Address,
-				LastSyncNumber: newSyncNumber,
-				LastSyncHash:   newSyncHash,
-				UpdatedAt:      now,
-			})
-		},
-	); err != nil {
+	params := &service.UpsertLogParam{
+		ChainID:        client.GetChainID().Int64(),
+		Address:        s.Address,
+		LastSyncNumber: newSyncNumber,
+		LastSyncHash:   newSyncHash,
+		Now:            now,
+		Logs:           logs,
+	}
+
+	if err := service.UpsertLog(ctx, params); err != nil {
 		return fmt.Errorf("upsert log error for address %s: %w", s.Address, err)
 	}
 

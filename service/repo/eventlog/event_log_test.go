@@ -3,10 +3,11 @@ package eventlog_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
-	internalCnf "evm_event_indexer/internal/config"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/internal/testutil"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/eventlog"
@@ -22,17 +23,24 @@ var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
 	testutil.SetupTestConfig()
-	internalStorage.InitDB()
+	dbManager := storage.Forge()
+	if err := dbManager.Init(); err != nil {
+		panic(fmt.Sprintf("failed to init database: %s\n", err))
+	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+	dbManager.Shutdown()
+	os.Exit(code)
 }
 
 func Test_LogRepo(t *testing.T) {
-	testutil.SetupTestConfig()
-	cnf := internalCnf.Get()
-	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
+	db, err := storage.GetMySQL(config.EventDBM)
+	if err != nil {
+		t.Fatalf("failed to get mysql: %s\n", err)
+	}
+
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-	err := utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
+	err = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return eventlog.TxUpsertLog(ctx, tx, &model.Log{
 			Address:     addr,
 			BlockHash:   common.Hash{}.String(),
@@ -57,13 +65,12 @@ func Test_LogRepo(t *testing.T) {
 		EndTime:    time.Now(),
 		Pagination: &model.Pagination{Page: 1, Size: 10},
 	}
-	total, err := eventlog.GetTotal(ctx, param)
+	total, err := eventlog.GetTotal(ctx, db, param)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 
-	logs, err := eventlog.GetLogs(ctx, param)
+	logs, err := eventlog.GetLogs(ctx, db, param)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, logs)
 	assert.Equal(t, addr, logs[0].Address)
-
 }

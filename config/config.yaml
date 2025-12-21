@@ -1,5 +1,6 @@
 #
 scanner_path: "./config/scanner.json"
+wait_for_start: "0s"
 decoders: 
   - name: "Transfer"
     signature: "Transfer(address,address,uint256)"
@@ -20,6 +21,10 @@ argon2:
   memory: 65536
   threads: 2
   key_len: 32  
+session:
+  at_expiration: "15m"
+  rt_expiration: "1h"
+  jwt_secret: "secret" # should be replaced from environment variable
 mysql:
   max_open_conns: 10
   max_idle_conns: 10
@@ -27,15 +32,45 @@ mysql:
   retry: 10
   wait_duration: "10s"
   timeout: "30s"
-  event_dbm:
-    db_name: "event_db"
-    account: "root"
-    password: "root"
-    ip: "127.0.0.1"
-    port: "3306"
-  event_dbs:
-    db_name: "event_db"
-    account: "root"
-    password: "root"
-    ip: "127.0.0.1"
-    port: "3306"
+  dbs:
+    event_dbm:
+      db_name: "event_db"
+      account: "root" # should be replaced from environment variable
+      password: "root" # should be replaced from environment variable
+      ip: "127.0.0.1" # should be replaced from environment variable
+      port: "3306" # should be replaced from environment variable
+    event_dbs:
+      db_name: "event_db"
+      account: "root" # should be replaced from environment variable
+      password: "root" # should be replaced from environment variable
+      ip: "127.0.0.1" # should be replaced from environment variable
+      port: "3306" # should be replaced from environment variable
+    account_dbm:
+      db_name: "account_db"
+      account: "root" # should be replaced from environment variable
+      password: "root" # should be replaced from environment variable
+      ip: "127.0.0.1" # should be replaced from environment variable
+      port: "3306" # should be replaced from environment variable
+    account_dbs:
+      db_name: "account_db"
+      account: "root" # should be replaced from environment variable
+      password: "root" # should be replaced from environment variable
+      ip: "127.0.0.1" # should be replaced from environment variable
+      port: "3306" # should be replaced from environment variable
+# redis
+redis:
+  retry: 10             # ping retry times
+  wait_duration: "1s"   # ping failure wait duration before next retry
+  ping_timeout: "500ms" # ping timeout duration
+  dbs:
+    user: # user redis db
+      read_timeout: "3s"
+      write_timeout: "3s"
+      max_retries: 3
+      dial_timeout: "10s"
+      pool_size: 50
+      pool_timeout: "1800s"
+      idle_timeout: "1800s"
+      idle_check_frequency: "900s"
+      host: "127.0.0.1:6379"
+      db: 1

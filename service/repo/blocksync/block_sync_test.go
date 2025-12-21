@@ -3,10 +3,11 @@ package blocksync_test
 import (
 	"context"
 	"database/sql"
-	internalCnf "evm_event_indexer/internal/config"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/internal/testutil"
 	"evm_event_indexer/service/model"
+	"fmt"
 	"os"
 
 	"evm_event_indexer/service/repo/blocksync"
@@ -23,17 +24,25 @@ var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
 	testutil.SetupTestConfig()
-	internalStorage.InitDB()
+	dbManager := storage.Forge()
+	if err := dbManager.Init(); err != nil {
+		panic(fmt.Sprintf("failed to init database: %s\n", err))
+	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+	dbManager.Shutdown()
+	os.Exit(code)
 }
 
 func Test_TxUpsertBlock(t *testing.T) {
-	cnf := internalCnf.Get()
-	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
+
+	db, err := storage.GetMySQL(config.EventDBM)
+	if err != nil {
+		t.Fatalf("failed to get mysql: %s\n", err)
+	}
 
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-	err := utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
+	err = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 			ChainID:        31337,
 			Address:        addr,

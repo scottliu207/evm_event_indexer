@@ -3,8 +3,6 @@ package eventlog
 import (
 	"context"
 	"database/sql"
-	"evm_event_indexer/internal/config"
-	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"strings"
 	"time"
@@ -75,7 +73,7 @@ type GetLogParam struct {
 }
 
 // retrieves event logs matching the filter criteria.
-func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log, error) {
+func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log, error) {
 	var sql strings.Builder
 	var wheres []string
 	var params []any
@@ -175,13 +173,8 @@ func getLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	return logs, nil
 }
 
-// retrieves event logs matching the filter criteria.
-func GetLogs(ctx context.Context, filter *GetLogParam) ([]*model.Log, error) {
-	return getLogs(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), filter)
-}
-
 // gets the total count of event logs matching the filter criteria.
-func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, error) {
+func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, error) {
 
 	var sql strings.Builder
 	var wheres []string
@@ -224,11 +217,6 @@ func getTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	}
 
 	return total, nil
-}
-
-// gets the total count of event logs matching the filter criteria.
-func GetTotal(ctx context.Context, filter *GetLogParam) (int64, error) {
-	return getTotal(ctx, storage.GetMysql(config.Get().MySQL.EventDBS.DBName), filter)
 }
 
 func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, fromBN uint64, toBN uint64) error {

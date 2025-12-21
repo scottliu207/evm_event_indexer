@@ -31,10 +31,10 @@ func TimeoutHandler() func(c *gin.Context) {
 			panic(p)
 		case <-time.After(cnf.API.Timeout):
 			c.AbortWithStatusJSON(
-				errors.API_TIMEOUT.HTTPCode,
+				errors.ErrApiTimeout.HTTPCode,
 				&protocol.Response{
-					Code:    errors.API_TIMEOUT.ErrorCode,
-					Message: errors.API_TIMEOUT.Message,
+					Code:    errors.ErrApiTimeout.ErrorCode,
+					Message: errors.ErrApiTimeout.Message,
 				})
 		case <-finish:
 		}

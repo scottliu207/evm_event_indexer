@@ -1,5 +1,5 @@
 services:
-# database for storing EVM events
+# database
   mysql:
     image: mysql:8.0
     container_name: evm-event-mysql
@@ -12,12 +12,21 @@ services:
       - evm-event-indexer-network
     volumes:
       # load schema from local directory for initialization
-      - ./db/schema:/docker-entrypoint-initdb.d:ro
+      - ./db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10      
+      retries: 10
+
+# redis
+  redis:
+    image: "redis:8.4.0"
+    container_name: evm-event-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - evm-event-indexer-network
 
 # local Ethereum node for testing
   anvil:
@@ -47,6 +56,10 @@ services:
       - evm-event-indexer-network      
     environment:
       - TZ=UTC # default timezone 
+      - WAIT_FOR_START=10s
+      - LOG_LEVEL=debug
+      - SESSION_AT_EXPIRATION=15m
+      - SESSION_RT_EXPIRATION=1h
       - MYSQL_EVENT_DBM_IP=evm-event-mysql
       - MYSQL_EVENT_DBM_PORT=3306
       - MYSQL_EVENT_DBM_ACCOUNT=root

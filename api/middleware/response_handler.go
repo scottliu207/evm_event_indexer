@@ -12,8 +12,6 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-const CTX_RESPONSE = "response"
-
 // ResponseHandler automatically handles API responses and errors.
 func ResponseHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -38,7 +36,7 @@ func ResponseHandler() gin.HandlerFunc {
 			res.Message = "success"
 
 			// return empty object when result is nil to maintain consistent JSON structure
-			result, ok := c.Get(CTX_RESPONSE)
+			result, ok := c.Get(CtxResponse)
 			if ok {
 				res.Result = result
 			}
@@ -54,13 +52,13 @@ func ResponseHandler() gin.HandlerFunc {
 			res.Message = err.Message
 			c.JSON(err.HTTPCode, res)
 		case last.Type == gin.ErrorTypeBind || isBindErr(last.Err):
-			res.Code = internalErr.API_INVALID_PARAM.ErrorCode
-			res.Message = internalErr.API_INVALID_PARAM.Message
-			c.JSON(internalErr.API_INVALID_PARAM.HTTPCode, res)
+			res.Code = internalErr.ErrApiInvalidParam.ErrorCode
+			res.Message = internalErr.ErrApiInvalidParam.Message
+			c.JSON(internalErr.ErrApiInvalidParam.HTTPCode, res)
 		default:
-			res.Code = internalErr.INTERNAL_SERVER_ERROR.ErrorCode
-			res.Message = internalErr.INTERNAL_SERVER_ERROR.Message
-			c.JSON(internalErr.INTERNAL_SERVER_ERROR.HTTPCode, res)
+			res.Code = internalErr.ErrInternalServerError.ErrorCode
+			res.Message = internalErr.ErrInternalServerError.Message
+			c.JSON(internalErr.ErrInternalServerError.HTTPCode, res)
 		}
 	}
 }

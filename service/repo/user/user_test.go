@@ -3,11 +3,12 @@ package user_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
-	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
-	internalStorage "evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/user"
 	"evm_event_indexer/utils"
@@ -21,10 +22,16 @@ import (
 var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
-	internalCnf.LoadConfig("../../../config/config.yaml")
-	internalStorage.InitDB()
+	config.LoadConfig("../../../config/config.yaml")
 
-	os.Exit(m.Run())
+	dbManager := storage.Forge()
+	if err := dbManager.Init(); err != nil {
+		panic(fmt.Sprintf("failed to init database: %s\n", err))
+	}
+
+	code := m.Run()
+	dbManager.Shutdown()
+	os.Exit(code)
 }
 
 func Test_User(t *testing.T) {
@@ -42,8 +49,11 @@ func Test_User(t *testing.T) {
 	pwdB64, saltB64, err := a.Hashing("password123")
 	assert.NoError(t, err)
 
-	cnf := internalCnf.Get()
-	db := internalStorage.GetMysql(cnf.MySQL.EventDBS.DBName)
+	db, err := storage.GetMySQL(config.AccountDBM)
+	if err != nil {
+		t.Fatalf("failed to get mysql: %s\n", err)
+	}
+
 	txObj := utils.NewTx(db)
 	err = txObj.Exec(ctx,
 		func(ctx context.Context, tx *sql.Tx) error {
@@ -65,7 +75,7 @@ func Test_User(t *testing.T) {
 		})
 	assert.NoError(t, err)
 
-	users, _, err := user.GetUsers(ctx, db, &user.GetUserFilter{
+	users, _, err := user.GetUsers(ctx, &user.GetUserFilter{
 		Accounts: []string{testUser},
 		Status:   enum.UserStatusEnabled,
 		Role:     enum.UserRoleUser,

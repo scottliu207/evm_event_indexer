@@ -74,7 +74,7 @@ func GetBlockSync(ctx context.Context, db *sql.DB, chainID int64, address string
 	return res, nil
 }
 
-func GetBlockSyncMap(ctx context.Context, db *sql.DB, addresses []string) (res map[string]*model.BlockSync, err error) {
+func GetBlockSyncMap(ctx context.Context, db *sql.DB, chainID int64, addresses []string) (res map[string]*model.BlockSync, err error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("addresses can not be empty")
 	}
@@ -82,13 +82,16 @@ func GetBlockSyncMap(ctx context.Context, db *sql.DB, addresses []string) (res m
 	var sql strings.Builder
 	var params []any
 	sql.WriteString(" SELECT ")
+	sql.WriteString("  `chain_id`, ")
 	sql.WriteString("  `address`, ")
 	sql.WriteString("  `last_sync_number`, ")
 	sql.WriteString("  `last_sync_hash`, ")
 	sql.WriteString("  `updated_at` ")
 	sql.WriteString(" FROM `event_db`.`block_sync` ")
 	sql.WriteString(" WHERE ")
-	sql.WriteString("  `address` IN ( ?")
+	sql.WriteString("  `chain_id` = ? ")
+	params = append(params, chainID)
+	sql.WriteString("  AND `address` IN ( ?")
 	for i, v := range addresses {
 		if i > 0 {
 			sql.WriteString(", ?")
@@ -107,6 +110,7 @@ func GetBlockSyncMap(ctx context.Context, db *sql.DB, addresses []string) (res m
 	for row.Next() {
 		bs := new(model.BlockSync)
 		if err := row.Scan(
+			&bs.ChainID,
 			&bs.Address,
 			&bs.LastSyncNumber,
 			&bs.LastSyncHash,

@@ -3,7 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/config"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -12,62 +12,53 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var (
-	pool = make(map[string]*sql.DB)
-	mu   sync.RWMutex
-)
-
-type MySQL struct {
-	Account  string
-	Password string
-	IP       string
-	Port     string
-	DBName   string
+type MySQLManager struct {
+	pool map[string]*sql.DB
+	mu   sync.Mutex
 }
 
-func GetMysql(name string) *sql.DB {
-	mu.RLock()
-	db := pool[name]
-	mu.RUnlock()
-	if db == nil {
-		panic(fmt.Sprintf("mysql %s not initialized", name))
+func NewMySQLManager() *MySQLManager {
+	return &MySQLManager{
+		pool: make(map[string]*sql.DB),
 	}
-	return db
 }
 
-func InitMysql(data *MySQL) error {
-	if data == nil {
-		return fmt.Errorf("mysql config is required")
+func (m *MySQLManager) GetMySQL(name string) (*sql.DB, error) {
+	db, ok := m.pool[name]
+	if !ok {
+		return nil, fmt.Errorf("mysql %s not initialized", name)
 	}
+	return db, nil
+}
 
-	cnf := internalCnf.Get().MySQL
+func (m *MySQLManager) InitMySQL(name string, dbCnf config.MySQL) error {
 
 	db, err := sql.Open(
 		"mysql",
 		fmt.Sprintf(
 			"%s:%s@tcp(%s:%s)/%s?parseTime=true&loc=%s&charset=utf8mb4,utf8&timeout=%s",
-			data.Account,
-			data.Password,
-			data.IP,
-			data.Port,
-			data.DBName,
+			dbCnf.Account,
+			dbCnf.Password,
+			dbCnf.IP,
+			dbCnf.Port,
+			dbCnf.DBName,
 			"Asia%2FTaipei",
-			cnf.Timeout.String(),
+			config.Get().MySQL.Timeout.String(),
 		),
 	)
 	if err != nil {
 		return err
 	}
 
-	db.SetMaxOpenConns(cnf.MaxOpenConns)
-	db.SetMaxIdleConns(cnf.MaxIdleConns)
-	db.SetConnMaxLifetime(cnf.ConnMaxLifeTime)
+	db.SetMaxOpenConns(config.Get().MySQL.MaxOpenConns)
+	db.SetMaxIdleConns(config.Get().MySQL.MaxIdleConns)
+	db.SetConnMaxLifetime(config.Get().MySQL.ConnMaxLifeTime)
 
-	for i := 0; i < cnf.Retry; i++ {
+	for i := 0; i < config.Get().MySQL.Retry; i++ {
 		err = func() error {
 			ctxTimeout, cancel := context.WithTimeout(
 				context.Background(),
-				cnf.Timeout,
+				config.Get().MySQL.Timeout,
 			)
 			defer cancel()
 
@@ -76,25 +67,34 @@ func InitMysql(data *MySQL) error {
 			}
 			return nil
 		}()
-		if err == nil {
-			break
+		if err != nil {
+			slog.Error(
+				"mysql initialize failure, failed to connect to mysql",
+				slog.Any("DB Name", dbCnf.DBName),
+				slog.Any("err", err),
+				slog.Any("waiting for retry", config.Get().MySQL.WaitDuration.String()),
+				slog.Any("retry", i),
+			)
+			time.Sleep(config.Get().MySQL.WaitDuration)
+			continue
 		}
-		slog.Error(
-			"failed to connect to mysql",
-			slog.Any("DB Name", data.DBName),
-			slog.Any("err", err),
-			slog.Any("waiting for retry", cnf.WaitDuration.String()),
-			slog.Any("retry", i),
-		)
-		time.Sleep(cnf.WaitDuration)
+
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.pool[name] = db
+		return nil
 	}
+
+	db.Close()
+	return fmt.Errorf("mysql initialize failure, retry limit exceed")
+}
+
+func (m *MySQLManager) Shutdown(name string) error {
+	db, err := m.GetMySQL(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get mysql: %w", err)
 	}
-
-	mu.Lock()
-	pool[data.DBName] = db
-	mu.Unlock()
-
+	db.Close()
+	delete(m.pool, name)
 	return nil
 }

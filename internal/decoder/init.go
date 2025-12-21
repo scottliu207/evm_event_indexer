@@ -13,7 +13,7 @@ var decoderMap = map[string]provider.EventDecoder{
 	"Approval": &erc20.ApprovalDecoder{},
 }
 
-func init() {
+func InitDecoder() {
 	for _, decoder := range config.Get().Decoders {
 		d, ok := decoderMap[decoder.Name]
 		if !ok {

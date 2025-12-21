@@ -8,11 +8,9 @@ COMPOSE_FILE="$ROOT_DIR/docker/docker-compose.yml"
 PROJECT_NAME="evm-event-indexer"
 
 usage() {
-  echo "$SCRIPT_NAME - 控制本專案 docker-compose"
-  echo
-  echo "用法:"
-  echo "  $SCRIPT_NAME up     啟動 docker-compose 服務"
-  echo "  $SCRIPT_NAME down   關閉 docker-compose 服務"
+  echo "usage: $SCRIPT_NAME [up|down]"
+  echo "  $SCRIPT_NAME up      start docker-compose services"
+  echo "  $SCRIPT_NAME down    stop docker-compose services"
   echo
   exit 1
 }
@@ -23,15 +21,15 @@ fi
 
 case "$1" in
   up)
-    echo "啟動 docker-compose (檔案: $COMPOSE_FILE)..."
+    echo "starting docker-compose (file: $COMPOSE_FILE)..."
     docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down -v
     docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --build
-    echo "服務已啟動"
+    echo "services started"
     ;;
   down)
-    echo "關閉 docker-compose (檔案: $COMPOSE_FILE)..."
+    echo "stopping docker-compose (file: $COMPOSE_FILE)..."
     docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down -v
-    echo "服務已關閉"
+    echo "services stopped"
     ;;
   -h|--help)
     usage

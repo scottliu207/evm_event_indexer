@@ -1,21 +1,13 @@
 package users
 
 import (
-	"context"
-	"database/sql"
 	"net/http"
 	"time"
 
 	"evm_event_indexer/api/middleware"
-	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/errors"
-	"evm_event_indexer/internal/storage"
-	"evm_event_indexer/service/model"
-
-	userRepo "evm_event_indexer/service/repo/user"
-	"evm_event_indexer/utils"
-	"evm_event_indexer/utils/hashing"
+	"evm_event_indexer/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,7 +31,7 @@ type (
 // It only supports creating users with default role (1) and enabled status (1).
 func Create(c *gin.Context) {
 	res := new(CreateUserRes)
-	c.Set(middleware.CTX_RESPONSE, res)
+	c.Set(middleware.CtxResponse, res)
 
 	var req CreateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -47,72 +39,29 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	cnf := config.Get()
-
-	users, _, err := userRepo.GetUsers(c.Request.Context(), storage.GetMysql(cnf.MySQL.EventDBS.DBName), &userRepo.GetUserFilter{
-		Accounts: []string{req.Account},
-	})
+	user, err := service.GetUserByAccount(c.Request.Context(), req.Account)
 	if err != nil {
-		c.Error(errors.INTERNAL_SERVER_ERROR.Wrap(err, "failed to get user info"))
+		c.Error(err)
 		return
 	}
 
-	if len(users) > 0 {
-		c.Error(errors.ACCOUNT_ALREADY_EXISTS.New())
+	if user != nil {
+		c.Error(errors.ErrAccountAlreadyExists.New())
 		return
 	}
 
-	argonOpt := &hashing.Argon2Opt{
-		Time:    cnf.Argon2.Time,
-		Memory:  cnf.Argon2.Memory,
-		Threads: cnf.Argon2.Threads,
-		KeyLen:  cnf.Argon2.KeyLen,
-	}
-
-	hasher := hashing.NewArgon2(argonOpt)
-	hashB64, saltB64, err := hasher.Hashing(req.Password)
+	nUser, err := service.InsertUser(c.Request.Context(), req.Account, req.Password)
 	if err != nil {
-		c.Error(errors.INTERNAL_SERVER_ERROR.Wrap(err, "failed to hash password"))
-		return
-	}
-
-	now := time.Now()
-	newUser := &model.User{
-		Account:  req.Account,
-		Status:   enum.UserStatusEnabled,
-		Role:     enum.UserRoleUser,
-		Password: hashB64,
-		AuthMeta: &model.AuthMeta{
-			Salt:    saltB64,
-			Memory:  argonOpt.Memory,
-			Time:    argonOpt.Time,
-			Threads: argonOpt.Threads,
-			KeyLen:  argonOpt.KeyLen,
-		},
-		CreatedAt: now,
-	}
-
-	txObj := utils.NewTx(storage.GetMysql(cnf.MySQL.EventDBM.DBName))
-	err = txObj.Exec(c.Request.Context(),
-		func(ctx context.Context, tx *sql.Tx) error {
-			id, err := userRepo.TxInsertUser(ctx, tx, newUser)
-			if err != nil {
-				return err
-			}
-			newUser.ID = id
-			return nil
-		})
-	if err != nil {
-		c.Error(errors.INTERNAL_SERVER_ERROR.Wrap(err, "failed to create user"))
+		c.Error(err)
 		return
 	}
 
 	*res = CreateUserRes{
-		ID:        newUser.ID,
-		Account:   newUser.Account,
-		Role:      newUser.Role,
-		Status:    newUser.Status,
-		CreatedAt: newUser.CreatedAt,
+		ID:        nUser.ID,
+		Account:   nUser.Account,
+		Role:      nUser.Role,
+		Status:    nUser.Status,
+		CreatedAt: nUser.CreatedAt,
 	}
 
 	c.Status(http.StatusCreated)

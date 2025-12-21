@@ -3,8 +3,11 @@ package user
 import (
 	"context"
 	"database/sql"
+	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
+	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
+	"fmt"
 	"strings"
 )
 
@@ -63,7 +66,15 @@ type GetUserFilter struct {
 	Role     enum.UserRole
 }
 
-func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*model.User, total int64, err error) {
+func GetUsers(ctx context.Context, filter *GetUserFilter) (res []*model.User, total int64, err error) {
+	db, err := storage.GetMySQL(config.AccountDBS)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get mysql: %w", err)
+	}
+	return getUsers(ctx, db, filter)
+}
+
+func getUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*model.User, total int64, err error) {
 	var sql strings.Builder
 	var wheres []string
 	var params []any

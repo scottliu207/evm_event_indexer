@@ -2,15 +2,12 @@ package background
 
 import (
 	"context"
-	"database/sql"
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/eth"
-	"evm_event_indexer/internal/storage"
+	"evm_event_indexer/service"
 
 	"evm_event_indexer/service/model"
-	"evm_event_indexer/service/repo/blocksync"
 	"evm_event_indexer/service/repo/eventlog"
-	"evm_event_indexer/utils"
 	"fmt"
 	"log/slog"
 	"time"
@@ -103,7 +100,7 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 	for {
 
 		// get batch logs to find the rollback checkpoint
-		logs, err := eventlog.GetLogs(ctx, &eventlog.GetLogParam{
+		logs, err := service.GetLogs(ctx, &eventlog.GetLogParam{
 			Address:        address,
 			OrderBy:        2,
 			Desc:           true,
@@ -145,22 +142,16 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 		page++
 	}
 
-	now := time.Now()
+	params := &service.ReorgLogParam{
+		ChainID:        client.GetChainID().Int64(),
+		Address:        address,
+		Checkpoint:     checkpoint,
+		LastSyncNumber: lastSyncNumber,
+		ReorgHash:      reorgHash,
+		Now:            time.Now(),
+	}
 
-	err = utils.NewTx(storage.GetMysql(config.Get().MySQL.EventDBS.DBName)).Exec(ctx,
-		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, address, checkpoint, lastSyncNumber)
-		},
-		func(ctx context.Context, tx *sql.Tx) error {
-			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				Address:        address,
-				LastSyncNumber: checkpoint,
-				LastSyncHash:   reorgHash,
-				UpdatedAt:      now,
-			})
-		},
-	)
-	if err != nil {
+	if err := service.ReorgLog(ctx, params); err != nil {
 		return fmt.Errorf("failed to execute reorg tx: %w", err)
 	}
 

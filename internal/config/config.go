@@ -6,8 +6,9 @@ import (
 )
 
 type Config struct {
-	ScannerPath string     `yaml:"scanner_path"`
-	Scanners    []struct { // json file, should located in the same directory as the config file
+	ScannerPath  string        `yaml:"scanner_path"`
+	WaitForStart time.Duration `yaml:"wait_for_start"`
+	Scanners     []struct {    // json file, should located in the same directory as the config file
 		RpcHTTP   string `json:"rpc_http"`
 		RpcWS     string `json:"rpc_ws"`
 		BatchSize int32  `json:"batch_size"`
@@ -37,24 +38,49 @@ type Config struct {
 		Threads uint8  `yaml:"threads"`
 		KeyLen  uint32 `yaml:"key_len"`
 	}
+	Session struct {
+		JWTSecret    string        `yaml:"jwt_secret"`
+		ATExpiration time.Duration `yaml:"at_expiration"`
+		RTExpiration time.Duration `yaml:"rt_expiration"`
+	} `yaml:"session"`
+
 	MySQL struct {
-		MaxOpenConns    int           `yaml:"max_open_conns"`
-		MaxIdleConns    int           `yaml:"max_idle_conns"`
-		ConnMaxLifeTime time.Duration `yaml:"conn_max_life_time"`
-		Retry           int           `yaml:"retry"`
-		WaitDuration    time.Duration `yaml:"wait_duration"`
-		Timeout         time.Duration `yaml:"timeout"`
-		EventDBM        mysql         `yaml:"event_dbm"`
-		EventDBS        mysql         `yaml:"event_dbs"`
+		MaxOpenConns    int              `yaml:"max_open_conns"`
+		MaxIdleConns    int              `yaml:"max_idle_conns"`
+		ConnMaxLifeTime time.Duration    `yaml:"conn_max_life_time"`
+		Retry           int              `yaml:"retry"`
+		WaitDuration    time.Duration    `yaml:"wait_duration"`
+		Timeout         time.Duration    `yaml:"timeout"`
+		DBs             map[string]MySQL `yaml:"dbs"`
 	} `yaml:"mysql"`
+
+	Redis struct {
+		Retry        int              `yaml:"retry"`
+		WaitDuration time.Duration    `yaml:"wait_duration"`
+		PingTimeout  time.Duration    `yaml:"ping_timeout"`
+		DBs          map[string]Redis `yaml:"dbs"`
+	}
 }
 
-type mysql struct {
+type MySQL struct {
 	DBName   string `yaml:"db_name"`
 	Account  string `yaml:"account"`
 	Password string `yaml:"password"`
 	IP       string `yaml:"ip"`
 	Port     string `yaml:"port"`
+}
+
+type Redis struct {
+	ReadTimeout        time.Duration `yaml:"read_timeout"`
+	WriteTimeout       time.Duration `yaml:"write_timeout"`
+	MaxRetries         int           `yaml:"max_retries"`
+	DialTimeout        time.Duration `yaml:"dial_timeout"`
+	PoolSize           int           `yaml:"pool_size"`
+	PoolTimeout        time.Duration `yaml:"pool_timeout"`
+	IdleTimeout        time.Duration `yaml:"idle_timeout"`
+	IdleCheckFrequency time.Duration `yaml:"idle_check_frequency"`
+	Host               string        `yaml:"host"`
+	DB                 int           `yaml:"db"`
 }
 
 var config = new(Config)
@@ -146,45 +172,69 @@ func (c Config) Validate() error {
 		return fmt.Errorf("mysql.timeout is required")
 	}
 
-	if c.MySQL.EventDBM.DBName == "" {
-		return fmt.Errorf("mysql.event_dbm.db_name is required")
+	for _, db := range c.MySQL.DBs {
+		if db.DBName == "" {
+			return fmt.Errorf("mysql.db_name is required")
+		}
+		if db.Account == "" {
+			return fmt.Errorf("mysql.account is required")
+		}
+		if db.Password == "" {
+			return fmt.Errorf("mysql.password is required")
+		}
+		if db.IP == "" {
+			return fmt.Errorf("mysql.ip is required")
+		}
+		if db.Port == "" {
+			return fmt.Errorf("mysql.port is required")
+		}
 	}
 
-	if c.MySQL.EventDBM.Account == "" {
-		return fmt.Errorf("mysql.event_dbm.account is required")
-	}
-
-	if c.MySQL.EventDBM.Password == "" {
-		return fmt.Errorf("mysql.event_dbm.password is required")
-	}
-
-	if c.MySQL.EventDBM.IP == "" {
-		return fmt.Errorf("mysql.event_dbm.ip is required")
-	}
-
-	if c.MySQL.EventDBM.Port == "" {
-		return fmt.Errorf("mysql.event_dbm.port is required")
-	}
-
-	if c.MySQL.EventDBS.DBName == "" {
-		return fmt.Errorf("mysql.event_dbs.db_name is required")
-	}
-
-	if c.MySQL.EventDBS.Account == "" {
-		return fmt.Errorf("mysql.event_dbs.account is required")
-	}
-
-	if c.MySQL.EventDBS.Password == "" {
-		return fmt.Errorf("mysql.event_dbs.password is required")
-	}
-
-	if c.MySQL.EventDBS.IP == "" {
-		return fmt.Errorf("mysql.event_dbs.ip is required")
-	}
-
-	if c.MySQL.EventDBS.Port == "" {
-		return fmt.Errorf("mysql.event_dbs.port is required")
+	for _, db := range c.Redis.DBs {
+		if db.Host == "" {
+			return fmt.Errorf("redis.host is required")
+		}
+		if db.ReadTimeout == 0 {
+			return fmt.Errorf("redis.read_timeout is required")
+		}
+		if db.WriteTimeout == 0 {
+			return fmt.Errorf("redis.write_timeout is required")
+		}
+		if db.MaxRetries == 0 {
+			return fmt.Errorf("redis.max_retries is required")
+		}
+		if db.DialTimeout == 0 {
+			return fmt.Errorf("redis.dial_timeout is required")
+		}
+		if db.PoolSize == 0 {
+			return fmt.Errorf("redis.pool_size is required")
+		}
+		if db.PoolTimeout == 0 {
+			return fmt.Errorf("redis.pool_timeout is required")
+		}
+		if db.IdleTimeout == 0 {
+			return fmt.Errorf("redis.idle_timeout is required")
+		}
+		if db.IdleCheckFrequency == 0 {
+			return fmt.Errorf("redis.idle_check_frequency is required")
+		}
 	}
 
 	return nil
+}
+
+func (c *Config) GetRedis(name string) (*Redis, error) {
+	if db, ok := c.Redis.DBs[name]; ok {
+		return &db, nil
+	}
+
+	return nil, fmt.Errorf("redis %s not found", name)
+}
+
+func (c *Config) GetMySQL(name string) (*MySQL, error) {
+	if db, ok := c.MySQL.DBs[name]; ok {
+		return &db, nil
+	}
+
+	return nil, fmt.Errorf("mysql %s not found", name)
 }

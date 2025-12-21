@@ -46,16 +46,8 @@ func Logger() gin.HandlerFunc {
 				slog.Any("path", path),
 				slog.Any("comment", comment),
 				slog.Any("Stack", lastError.Err),
-				slog.Any("req", string(buf)),
 			)
 			return
-		}
-
-		resStr := ""
-		if infRes, ok := c.Get(INTERCEPTOR_KEY); ok {
-			if realRes, isProtocol := infRes.(*bodyLogWriter); isProtocol {
-				resStr = realRes.body.String()
-			}
 		}
 
 		slog.Info(
@@ -64,9 +56,6 @@ func Logger() gin.HandlerFunc {
 			slog.Any("latency", latency/time.Millisecond),
 			slog.Any("method", method),
 			slog.Any("path", path),
-			slog.Any("comment", comment),
-			slog.Any("req", string(buf)),
-			slog.Any("res", resStr),
-		)
+			slog.Any("comment", comment))
 	}
 }

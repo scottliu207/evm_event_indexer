@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,17 +24,15 @@ func Test_Decoder(t *testing.T) {
 		TxIndex:        0,
 		LogIndex:       0,
 		BlockTimestamp: time.Now(),
-		Topics: &model.Topics{
-			common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
-			common.HexToHash("0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"),
-			common.HexToHash("0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3"),
-		},
-		Data: []byte("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"),
+		Topic0:         "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+		Topic1:         "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+		Topic2:         "0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3",
+		Data:           []byte("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"),
 	})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Transfer", name)
-	assert.Equal(t, "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", args["from"])
-	assert.Equal(t, "0x5FbDB2315678afecb367f032d93F642f64180aa3", args["to"])
+	assert.Equal(t, "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266", args["from"])
+	assert.Equal(t, "0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3", args["to"])
 	assert.Equal(t, big.NewInt(1).String(), args["value"])
 }

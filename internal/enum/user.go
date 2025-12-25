@@ -18,22 +18,3 @@ func (s UserStatus) String() string {
 		return "unknown"
 	}
 }
-
-type UserRole int8
-
-const (
-	_ UserRole = iota
-	UserRoleAdmin
-	UserRoleUser
-)
-
-func (r UserRole) String() string {
-	switch r {
-	case UserRoleAdmin:
-		return "admin"
-	case UserRoleUser:
-		return "user"
-	default:
-		return "unknown"
-	}
-}

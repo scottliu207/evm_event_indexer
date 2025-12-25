@@ -13,7 +13,6 @@ type (
 		ID        int64           // user id
 		Account   string          // user account
 		Status    enum.UserStatus // user status (enabled, disabled)
-		Role      enum.UserRole   // user role (admin, user)
 		Password  string          // hashed password
 		AuthMeta  *AuthMeta       // JSON string of auth metadata
 		CreatedAt time.Time       // creation timestamp

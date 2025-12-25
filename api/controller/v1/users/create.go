@@ -21,7 +21,6 @@ type (
 	CreateUserRes struct {
 		ID        int64           `json:"id"`
 		Account   string          `json:"account"`
-		Role      enum.UserRole   `json:"role"`
 		Status    enum.UserStatus `json:"status"`
 		CreatedAt time.Time       `json:"created_at"`
 	}
@@ -58,7 +57,6 @@ func Create(c *gin.Context) {
 	*res = CreateUserRes{
 		ID:        nUser.ID,
 		Account:   nUser.Account,
-		Role:      nUser.Role,
 		Status:    nUser.Status,
 		CreatedAt: nUser.CreatedAt,
 	}

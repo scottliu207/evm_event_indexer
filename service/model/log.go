@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type (
@@ -16,7 +14,10 @@ type (
 		Address        string
 		BlockHash      string
 		BlockNumber    uint64
-		Topics         *Topics
+		Topic0         string
+		Topic1         string
+		Topic2         string
+		Topic3         string
 		TxIndex        int32
 		LogIndex       int32
 		TxHash         string
@@ -30,39 +31,9 @@ type (
 		EventName string            `json:"event_name"`
 		EventData map[string]string `json:"event_data"`
 	}
-
-	Topics []common.Hash
 )
 
-// Scan : 實作 sql.Scanner 介面
-func (t *Topics) Scan(val any) error {
-	switch v := val.(type) {
-	case []byte:
-		return json.Unmarshal(v, t)
-	case string:
-		return json.Unmarshal([]byte(v), t)
-	default:
-		return fmt.Errorf("unsupported type: %T", v)
-	}
-}
-
-// Value : 實作 driver.Valuer 界面
-func (t *Topics) Value() (driver.Value, error) {
-	if t == nil {
-		return json.Marshal(&Topics{})
-	}
-	return json.Marshal(t)
-}
-
-func (t *Topics) Array() []common.Hash {
-	if t == nil {
-		return []common.Hash{}
-	}
-
-	return *t
-}
-
-// Scan : 實作 sql.Scanner 介面
+// Scan : implement sql.Scanner interface
 func (t *DecodedEvent) Scan(val any) error {
 	switch v := val.(type) {
 	case []byte:
@@ -74,7 +45,7 @@ func (t *DecodedEvent) Scan(val any) error {
 	}
 }
 
-// Value : 實作 driver.Valuer 界面
+// Value : implement driver.Valuer interface
 func (t *DecodedEvent) Value() (driver.Value, error) {
 	if t == nil {
 		return json.Marshal(&DecodedEvent{})

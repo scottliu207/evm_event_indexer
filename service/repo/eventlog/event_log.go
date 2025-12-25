@@ -18,7 +18,10 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	sql.WriteString("	`address`, ")
 	sql.WriteString("	`block_hash`, ")
 	sql.WriteString("	`block_number`, ")
-	sql.WriteString("	`topics`, ")
+	sql.WriteString("	`topic_0`, ")
+	sql.WriteString("	`topic_1`, ")
+	sql.WriteString("	`topic_2`, ")
+	sql.WriteString("	`topic_3`, ")
 	sql.WriteString("	`tx_index`, ")
 	sql.WriteString("	`log_index`, ")
 	sql.WriteString("	`tx_hash`, ")
@@ -29,12 +32,15 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	sql.WriteString(" ) VALUES ")
 
 	for i, v := range log {
-		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?,?,?) "
+		placeholder[i] = " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
 		params = append(params, v.ChainID)
 		params = append(params, v.Address)
 		params = append(params, v.BlockHash)
 		params = append(params, v.BlockNumber)
-		params = append(params, v.Topics)
+		params = append(params, v.Topic0)
+		params = append(params, v.Topic1)
+		params = append(params, v.Topic2)
+		params = append(params, v.Topic3)
 		params = append(params, v.TxIndex)
 		params = append(params, v.LogIndex)
 		params = append(params, v.TxHash)
@@ -48,9 +54,13 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 
 	sql.WriteString(" ON DUPLICATE KEY UPDATE")
 	sql.WriteString("	`block_hash` = VALUES(`block_hash`), ")
-	sql.WriteString("	`topics` = VALUES(`topics`), ")
+	sql.WriteString("	`topic_0` = VALUES(`topic_0`), ")
+	sql.WriteString("	`topic_1` = VALUES(`topic_1`), ")
+	sql.WriteString("	`topic_2` = VALUES(`topic_2`), ")
+	sql.WriteString("	`topic_3` = VALUES(`topic_3`), ")
 	sql.WriteString("	`tx_hash` = VALUES(`tx_hash`), ")
 	sql.WriteString("	`data` = VALUES(`data`), ")
+	sql.WriteString("	`decoded_event` = VALUES(`decoded_event`), ")
 	sql.WriteString("	`block_timestamp` = VALUES(`block_timestamp`) ")
 
 	_, err := tx.ExecContext(ctx, sql.String(), params...)
@@ -70,6 +80,10 @@ type GetLogParam struct {
 	BlockNumberLTE uint64
 	BlockNumberGTE uint64
 	TxHash         string
+	Topic0         string
+	Topic1         string
+	Topic2         string
+	Topic3         string
 	Desc           bool
 	Pagination     *model.Pagination
 }
@@ -86,7 +100,10 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	sql.WriteString("   address,")
 	sql.WriteString("   block_hash,")
 	sql.WriteString("   block_number,")
-	sql.WriteString("   topics,")
+	sql.WriteString("   topic_0,")
+	sql.WriteString("   topic_1,")
+	sql.WriteString("   topic_2,")
+	sql.WriteString("   topic_3,")
 	sql.WriteString("   tx_index,")
 	sql.WriteString("   log_index,")
 	sql.WriteString("   tx_hash,")
@@ -110,6 +127,23 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	if filter.TxHash != "" {
 		wheres = append(wheres, " tx_hash = ? ")
 		params = append(params, filter.TxHash)
+	}
+
+	if filter.Topic0 != "" {
+		wheres = append(wheres, " topic_0 = ? ")
+		params = append(params, filter.Topic0)
+	}
+	if filter.Topic1 != "" {
+		wheres = append(wheres, " topic_1 = ? ")
+		params = append(params, filter.Topic1)
+	}
+	if filter.Topic2 != "" {
+		wheres = append(wheres, " topic_2 = ? ")
+		params = append(params, filter.Topic2)
+	}
+	if filter.Topic3 != "" {
+		wheres = append(wheres, " topic_3 = ? ")
+		params = append(params, filter.Topic3)
 	}
 
 	if !filter.StartTime.IsZero() {
@@ -170,7 +204,10 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 			&log.Address,
 			&log.BlockHash,
 			&log.BlockNumber,
-			&log.Topics,
+			&log.Topic0,
+			&log.Topic1,
+			&log.Topic2,
+			&log.Topic3,
 			&log.TxIndex,
 			&log.LogIndex,
 			&log.TxHash,
@@ -212,6 +249,23 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	if filter.TxHash != "" {
 		wheres = append(wheres, " tx_hash = ? ")
 		params = append(params, filter.TxHash)
+	}
+
+	if filter.Topic0 != "" {
+		wheres = append(wheres, " topic_0 = ? ")
+		params = append(params, filter.Topic0)
+	}
+	if filter.Topic1 != "" {
+		wheres = append(wheres, " topic_1 = ? ")
+		params = append(params, filter.Topic1)
+	}
+	if filter.Topic2 != "" {
+		wheres = append(wheres, " topic_2 = ? ")
+		params = append(params, filter.Topic2)
+	}
+	if filter.Topic3 != "" {
+		wheres = append(wheres, " topic_3 = ? ")
+		params = append(params, filter.Topic3)
 	}
 
 	if !filter.StartTime.IsZero() {

@@ -24,18 +24,18 @@ func (d *ApprovalDecoder) Decode(log *model.Log) (map[string]string, error) {
 	// topic[1] = owner (indexed)
 	// topic[2] = spender (indexed)
 	// data = value
-	if log == nil || log.Topics == nil {
+	if log == nil {
 		return nil, fmt.Errorf("invalid log")
 	}
 
-	topics := log.Topics.Array()
+	topics := []string{log.Topic0, log.Topic1, log.Topic2}
 
 	if len(topics) != 3 {
-		return nil, fmt.Errorf("event Approval: expected 3 topics, got %d", len(log.Topics.Array()))
+		return nil, fmt.Errorf("event Approval: expected 3 topics, got %d", len(topics))
 	}
 
-	owner := common.BytesToAddress(topics[1].Bytes())
-	spender := common.BytesToAddress(topics[2].Bytes())
+	owner := common.HexToHash(topics[1])
+	spender := common.HexToHash(topics[2])
 	value := new(big.Int).SetBytes(log.Data)
 
 	return map[string]string{

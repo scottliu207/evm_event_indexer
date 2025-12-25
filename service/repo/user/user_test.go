@@ -60,7 +60,6 @@ func Test_User(t *testing.T) {
 			_, err := user.TxInsertUser(ctx, tx, &model.User{
 				Account:  testUser,
 				Status:   enum.UserStatusEnabled,
-				Role:     enum.UserRoleUser,
 				Password: pwdB64,
 				AuthMeta: &model.AuthMeta{
 					Salt:    saltB64,
@@ -75,16 +74,14 @@ func Test_User(t *testing.T) {
 		})
 	assert.NoError(t, err)
 
-	users, _, err := user.GetUsers(ctx, &user.GetUserFilter{
+	users, _, err := user.GetUsers(ctx, db, &user.GetUserFilter{
 		Accounts: []string{testUser},
 		Status:   enum.UserStatusEnabled,
-		Role:     enum.UserRoleUser,
 	})
 	assert.NoError(t, err)
 	assert.Len(t, users, 1)
 	assert.Equal(t, testUser, users[0].Account)
 	assert.Equal(t, enum.UserStatusEnabled, users[0].Status)
-	assert.Equal(t, enum.UserRoleUser, users[0].Role)
 	t.Logf("user retrieved: %v", users[0])
 
 	err = txObj.Exec(ctx,

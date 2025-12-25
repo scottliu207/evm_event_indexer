@@ -42,13 +42,14 @@ func Test_LogRepo(t *testing.T) {
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 	err = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		return eventlog.TxUpsertLog(ctx, tx, &model.Log{
-			Address:     addr,
-			BlockHash:   common.Hash{}.String(),
-			BlockNumber: 0,
-			Topics: &model.Topics{
-				common.HexToHash("0x123"),
-				common.HexToHash("0x456"),
-			},
+			Address:        addr,
+			ChainID:        31337,
+			BlockHash:      common.Hash{}.String(),
+			BlockNumber:    0,
+			Topic0:         "0x123",
+			Topic1:         "0x456",
+			Topic2:         "0x789",
+			Topic3:         "0xabc",
 			TxIndex:        1,
 			LogIndex:       2,
 			TxHash:         common.Hash{}.String(),
@@ -61,8 +62,8 @@ func Test_LogRepo(t *testing.T) {
 
 	param := &eventlog.GetLogParam{
 		Address:    addr,
-		StartTime:  time.Now().Add(-time.Hour),
-		EndTime:    time.Now(),
+		StartTime:  time.Now().Add(-time.Second),
+		EndTime:    time.Now().Add(time.Second),
 		Pagination: &model.Pagination{Page: 1, Size: 10},
 	}
 	total, err := eventlog.GetTotal(ctx, db, param)

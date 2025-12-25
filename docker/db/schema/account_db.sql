@@ -7,7 +7,6 @@ CREATE TABLE `account_db`.`user` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
   `account` varchar(20) NOT NULL COMMENT 'user account',
   `status` tinyint unsigned NOT NULL DEFAULT 1 COMMENT 'user status (1: enabled, 2: disabled)',
-  `role` tinyint unsigned NOT NULL DEFAULT 2 COMMENT 'user role (1: admin, 2: user)',
   `password` varchar(255) NOT NULL COMMENT 'user password',
   `auth_meta` json NOT NULL COMMENT 'user authentication metadata',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created at',

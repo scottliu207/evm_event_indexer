@@ -123,12 +123,22 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 	newSyncHash := header.Hash().Hex()
 	logs := make([]*model.Log, len(eventLogs))
 	for i, v := range eventLogs {
+		topics := make([]string, 4)
+		ti := 0
+		for _, t := range v.Topics {
+			topics[ti] = t.Hex()
+			ti++
+		}
+
 		logs[i] = &model.Log{
 			ChainID:        client.GetChainID().Int64(),
 			Address:        v.Address.Hex(),
 			BlockHash:      v.BlockHash.Hex(),
 			BlockNumber:    v.BlockNumber,
-			Topics:         (*model.Topics)(&v.Topics),
+			Topic0:         topics[0],
+			Topic1:         topics[1],
+			Topic2:         topics[2],
+			Topic3:         topics[3],
 			TxIndex:        int32(v.TxIndex),
 			LogIndex:       int32(v.Index),
 			TxHash:         v.TxHash.Hex(),

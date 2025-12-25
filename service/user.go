@@ -24,8 +24,14 @@ func VerifyUserPassword(ctx context.Context, account string, password string) (*
 		return nil, errors.ErrApiInvalidParam.New("password is required")
 	}
 
-	users, _, err := userRepo.GetUsers(ctx, &userRepo.GetUserFilter{
+	db, err := storage.GetMySQL(config.AccountDBS)
+	if err != nil {
+		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get mysql")
+	}
+
+	users, _, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
 		Accounts: []string{account},
+		Status:   enum.UserStatusEnabled,
 	})
 	if err != nil {
 		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get user")
@@ -78,7 +84,6 @@ func InsertUser(ctx context.Context, account string, password string) (*model.Us
 	user := &model.User{
 		Account:  account,
 		Status:   enum.UserStatusEnabled,
-		Role:     enum.UserRoleUser,
 		Password: hashB64,
 		AuthMeta: &model.AuthMeta{
 			Salt:    saltB64,
@@ -116,8 +121,14 @@ func GetUserByAccount(ctx context.Context, account string) (*model.User, error) 
 		return nil, errors.ErrApiInvalidParam.New("account is required")
 	}
 
-	users, _, err := userRepo.GetUsers(ctx, &userRepo.GetUserFilter{
+	db, err := storage.GetMySQL(config.AccountDBS)
+	if err != nil {
+		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get mysql")
+	}
+
+	users, _, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
 		Accounts: []string{account},
+		Status:   enum.UserStatusEnabled,
 	})
 	if err != nil {
 		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get user")

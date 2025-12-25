@@ -3,11 +3,8 @@ package user
 import (
 	"context"
 	"database/sql"
-	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
-	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/model"
-	"fmt"
 	"strings"
 )
 
@@ -17,18 +14,16 @@ func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, err
 	INSERT INTO account_db.user (
 		account,
 		status,
-		role,
 		password,
 		auth_meta,
 		created_at
-	) VALUES (?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?)
 `
 
 	var params []any
 
 	params = append(params, user.Account)
 	params = append(params, user.Status)
-	params = append(params, user.Role)
 	params = append(params, user.Password)
 	params = append(params, user.AuthMeta)
 	params = append(params, user.CreatedAt)
@@ -63,18 +58,9 @@ func TxDeleteUser(ctx context.Context, tx *sql.Tx, userID int64) error {
 type GetUserFilter struct {
 	Accounts []string
 	Status   enum.UserStatus
-	Role     enum.UserRole
 }
 
-func GetUsers(ctx context.Context, filter *GetUserFilter) (res []*model.User, total int64, err error) {
-	db, err := storage.GetMySQL(config.AccountDBS)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get mysql: %w", err)
-	}
-	return getUsers(ctx, db, filter)
-}
-
-func getUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*model.User, total int64, err error) {
+func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*model.User, total int64, err error) {
 	var sql strings.Builder
 	var wheres []string
 	var params []any
@@ -82,7 +68,6 @@ func getUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 	sql.WriteString("  `id`, ")
 	sql.WriteString("  `account`, ")
 	sql.WriteString("  `status`, ")
-	sql.WriteString("  `role`, ")
 	sql.WriteString("  `password`, ")
 	sql.WriteString("  `auth_meta`, ")
 	sql.WriteString("  `created_at`, ")
@@ -108,11 +93,6 @@ func getUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 		params = append(params, filter.Status)
 	}
 
-	if filter.Role != 0 {
-		wheres = append(wheres, " `role` = ? ")
-		params = append(params, filter.Role)
-	}
-
 	if len(wheres) > 0 {
 		sql.WriteString(strings.Join(wheres, " AND "))
 	}
@@ -131,7 +111,6 @@ func getUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 			&user.ID,
 			&user.Account,
 			&user.Status,
-			&user.Role,
 			&user.Password,
 			&user.AuthMeta,
 			&user.CreatedAt,

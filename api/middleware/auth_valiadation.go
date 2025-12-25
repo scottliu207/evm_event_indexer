@@ -26,7 +26,6 @@ func AuthValidation() gin.HandlerFunc {
 		}
 
 		c.Set(CtxUserID, userID)
-
 		c.Next()
 	}
 }

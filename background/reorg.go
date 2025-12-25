@@ -61,7 +61,7 @@ func (r *ReorgConsumer) Run(ctx context.Context) error {
 			}
 
 			if err := r.reorgHandler(ctx, msg.RpcHttp, msg.LastSyncNumber, msg.ContractAddress); err != nil {
-				slog.Error("failed to handle reorg", slog.Any("err", err))
+				slog.Error("failed to handle reorg", slog.Any("error", err))
 				select {
 				case <-ctx.Done():
 					return nil

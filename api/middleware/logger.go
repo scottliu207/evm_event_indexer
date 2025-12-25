@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"evm_event_indexer/internal/errors"
 	"io"
 	"log/slog"
 	"time"
@@ -38,14 +39,13 @@ func Logger() gin.HandlerFunc {
 
 		// get error from gin context, handle only the first error
 		if lastError := c.Errors.Last(); lastError != nil {
-			slog.Error(
-				"API response error",
+			slog.Error("API response error",
 				slog.Any("statusCode", statusCode),
 				slog.Any("latency", latency/time.Millisecond),
 				slog.Any("method", method),
 				slog.Any("path", path),
 				slog.Any("comment", comment),
-				slog.Any("Stack", lastError.Err),
+				slog.Any("Stack", errors.Chain(lastError.Err)),
 			)
 			return
 		}

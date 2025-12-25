@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// VerifyUserPassword verifies the user password, user == nil means the user is not found or the password is incorrect
+// VerifyUserPassword verifies the user password, return InvalidCredentialsError if the account or password is incorrect.
 func VerifyUserPassword(ctx context.Context, account string, password string) (*model.User, error) {
 
 	if account == "" {
@@ -32,7 +32,7 @@ func VerifyUserPassword(ctx context.Context, account string, password string) (*
 	}
 
 	if len(users) == 0 {
-		return nil, nil
+		return nil, errors.ErrInvalidCredentials.New("incorrect account or password")
 	}
 
 	user := users[0]
@@ -45,7 +45,7 @@ func VerifyUserPassword(ctx context.Context, account string, password string) (*
 	}
 
 	if !hashing.NewArgon2(opt).Verify(password, user.AuthMeta.Salt, user.Password) {
-		return nil, nil
+		return nil, errors.ErrInvalidCredentials.New("incorrect account or password")
 	}
 
 	return user, nil

@@ -64,7 +64,7 @@ func (j *JWT) VerifyToken(tokenString string) (int64, error) {
 	}
 
 	if raw == "" {
-		return 0, nil
+		return 0, fmt.Errorf("invalid token: token is empty")
 	}
 
 	claims := new(jwt.RegisteredClaims)
@@ -77,23 +77,19 @@ func (j *JWT) VerifyToken(tokenString string) (int64, error) {
 	}
 
 	if !tokenObj.Valid {
-		return 0, nil
+		return 0, fmt.Errorf("invalid token: token is not valid")
 	}
 
 	if claims.Issuer != jwtIssuer {
-		return 0, nil
-	}
-
-	if len(claims.Audience) == 0 {
-		return 0, nil
+		return 0, fmt.Errorf("invalid token: issuer is not valid")
 	}
 
 	if !slices.Contains(claims.Audience, jwtAudience) {
-		return 0, nil
+		return 0, fmt.Errorf("invalid token: audience is not valid")
 	}
 
 	if claims.Subject == "" {
-		return 0, nil
+		return 0, fmt.Errorf("invalid token: subject is empty")
 	}
 
 	userID, err := strconv.ParseInt(claims.Subject, 10, 64)

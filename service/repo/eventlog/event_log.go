@@ -68,6 +68,8 @@ type GetLogParam struct {
 	StartTime      time.Time
 	EndTime        time.Time
 	BlockNumberLTE uint64
+	BlockNumberGTE uint64
+	TxHash         string
 	Desc           bool
 	Pagination     *model.Pagination
 }
@@ -100,8 +102,15 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 		params = append(params, filter.ChainID)
 	}
 
-	wheres = append(wheres, " address = ? ")
-	params = append(params, filter.Address)
+	if filter.Address != "" {
+		wheres = append(wheres, " address = ? ")
+		params = append(params, filter.Address)
+	}
+
+	if filter.TxHash != "" {
+		wheres = append(wheres, " tx_hash = ? ")
+		params = append(params, filter.TxHash)
+	}
 
 	if !filter.StartTime.IsZero() {
 		params = append(params, filter.StartTime.UTC())
@@ -116,6 +125,11 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	if filter.BlockNumberLTE > 0 {
 		params = append(params, filter.BlockNumberLTE)
 		wheres = append(wheres, " block_number <= ? ")
+	}
+
+	if filter.BlockNumberGTE > 0 {
+		params = append(params, filter.BlockNumberGTE)
+		wheres = append(wheres, " block_number >= ? ")
 	}
 
 	sql.WriteString(strings.Join(wheres, " AND "))
@@ -190,8 +204,15 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 		params = append(params, filter.ChainID)
 	}
 
-	wheres = append(wheres, " address = ? ")
-	params = append(params, filter.Address)
+	if filter.Address != "" {
+		wheres = append(wheres, " address = ? ")
+		params = append(params, filter.Address)
+	}
+
+	if filter.TxHash != "" {
+		wheres = append(wheres, " tx_hash = ? ")
+		params = append(params, filter.TxHash)
+	}
 
 	if !filter.StartTime.IsZero() {
 		params = append(params, filter.StartTime.UTC())
@@ -206,6 +227,11 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	if filter.BlockNumberLTE > 0 {
 		params = append(params, filter.BlockNumberLTE)
 		wheres = append(wheres, " block_number <= ? ")
+	}
+
+	if filter.BlockNumberGTE > 0 {
+		params = append(params, filter.BlockNumberGTE)
+		wheres = append(wheres, " block_number >= ? ")
 	}
 
 	sql.WriteString(strings.Join(wheres, " AND "))

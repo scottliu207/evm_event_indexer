@@ -61,7 +61,7 @@ func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
 		case <-ticker.C:
 			if err := s.syncLog(ctx, client); err != nil {
 				slog.Error("syncLog error",
-					slog.Any("err", err),
+					slog.Any("error", err),
 					slog.String("address", s.Address),
 				)
 			}
@@ -141,7 +141,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 		name, args, err := decoder.Provider.Decode(logs[i])
 		if err != nil {
 			slog.Error("decode event error",
-				slog.Any("err", err),
+				slog.Any("error", err),
 				slog.Any("address", s.Address),
 				slog.Any("blockNumber", v.BlockNumber),
 				slog.Any("txHash", v.TxHash.Hex()),

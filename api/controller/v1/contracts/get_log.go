@@ -16,15 +16,17 @@ import (
 
 type (
 	GetLogReq struct {
-		ChainID   int64    `form:"chain_id" binding:"required"`
-		Topics    []string `form:"topics" binding:"required,dive,hex"`
-		Address   string   `form:"address" binding:"required"`
-		StartTime string   `form:"start_time" binding:"required"`
-		EndTime   string   `form:"end_time" binding:"required"`
-		Page      int32    `form:"page" binding:"required,min=1"`
-		Size      int32    `form:"size" binding:"required,min=1,max=100"`
-		OrderBy   int8     `form:"order_by"`
-		Desc      bool     `form:"desc"`
+		ChainID   int64  `form:"chain_id"`
+		Address   string `form:"address" binding:"omitempty"`
+		TxHash    string `form:"tx_hash" binding:"omitempty"`
+		BNStart   uint64 `form:"bn_start" binding:"omitempty"` // 0 means no limit
+		BNEnd     uint64 `form:"bn_end" binding:"omitempty"`   // 0 means no limit
+		StartTime string `form:"start_time" binding:"required"`
+		EndTime   string `form:"end_time" binding:"required"`
+		OrderBy   int8   `form:"order_by"`
+		Desc      bool   `form:"desc"`
+		Page      int32  `form:"page" binding:"required,min=1"`
+		Size      int32  `form:"size" binding:"required,min=1,max=100"`
 	}
 
 	GetLogRes struct {
@@ -62,7 +64,7 @@ func GetLog(c *gin.Context) {
 	}
 
 	// Validate address format
-	if !common.IsHexAddress(req.Address) {
+	if req.Address != "" && !common.IsHexAddress(req.Address) {
 		c.Error(errors.ErrApiInvalidParam.Wrap(nil, "invalid address format"))
 		return
 	}
@@ -81,13 +83,21 @@ func GetLog(c *gin.Context) {
 		return
 	}
 
+	// default order by block number
+	if req.OrderBy == 0 {
+		req.OrderBy = 2
+	}
+
 	param := &logRepo.GetLogParam{
-		ChainID:   req.ChainID,
-		Address:   req.Address,
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   req.OrderBy,
-		Desc:      req.Desc,
+		ChainID:        req.ChainID,
+		Address:        req.Address,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		TxHash:         req.TxHash,
+		BlockNumberGTE: req.BNStart,
+		BlockNumberLTE: req.BNEnd,
+		OrderBy:        req.OrderBy,
+		Desc:           req.Desc,
 		Pagination: &model.Pagination{
 			Page: req.Page,
 			Size: req.Size,

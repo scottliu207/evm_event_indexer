@@ -1,6 +1,7 @@
-package users
+package auth
 
 import (
+	"log/slog"
 	"net/http"
 
 	"evm_event_indexer/api/middleware"
@@ -22,7 +23,7 @@ type (
 	}
 )
 
-// User login. Returns access token in body and refresh token in cookie.
+// Login logs in the user and returns the access token in body and refresh token in cookie
 func Login(c *gin.Context) {
 	res := new(LoginRes)
 	c.Set(middleware.CtxResponse, res)
@@ -33,16 +34,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	cnf := config.Get()
-
 	user, err := service.VerifyUserPassword(c.Request.Context(), req.Account, req.Password)
 	if err != nil {
-		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to verify user password"))
-		return
-	}
-
-	if user == nil {
-		c.Error(errors.ErrInvalidCredentials.New())
+		c.Error(err)
 		return
 	}
 
@@ -58,6 +52,14 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// delete old refresh token if exists
+	rtCookie, _ := c.Cookie("refresh_token")
+	if rtCookie != "" {
+		if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
+			slog.Error("failed to delete refresh token", slog.Any("error", err), slog.Any("userID", user.ID))
+		}
+	}
+
 	*res = LoginRes{
 		AccessToken: at,
 	}
@@ -65,5 +67,5 @@ func Login(c *gin.Context) {
 	// set refresh token cookie
 	c.Status(http.StatusOK)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", rt, int(cnf.Session.RTExpiration.Seconds()), "/", "", true, true)
+	c.SetCookie("refresh_token", rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
 }

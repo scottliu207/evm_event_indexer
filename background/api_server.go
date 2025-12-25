@@ -25,7 +25,7 @@ func (s *APIServer) Run(ctx context.Context) error {
 	go func() {
 		slog.Info("API server is running", slog.String("port", config.Get().API.Port))
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("listen and serve error", slog.Any("err", err))
+			slog.Error("listen and serve error", slog.Any("error", err))
 		}
 	}()
 

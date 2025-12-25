@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -37,9 +38,24 @@ func (e Err) Wrap(err error, AdditionTxt ...string) error {
 	return &Err{
 		HTTPCode:  e.HTTPCode,
 		ErrorCode: e.ErrorCode,
-		Message:   strings.Join(msg, ":"),
+		Message:   strings.Join(msg, ": "),
 		stack:     err,
 	}
+}
+
+func (e Err) Unwrap() error {
+	return e.stack
+}
+
+// Chain returns a string of the error chain with stacked errors concatenated by ", "
+func Chain(err error) string {
+	parts := []string{}
+	for err != nil {
+		parts = append(parts, err.Error())
+		err = errors.Unwrap(err)
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // Define error codes here

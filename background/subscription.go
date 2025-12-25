@@ -63,7 +63,7 @@ func (s *Subscription) Run(ctx context.Context) error {
 		}
 
 		if err != nil {
-			slog.Error("subscription error occurred, waiting to retry", slog.Any("err", err))
+			slog.Error("subscription error occurred, waiting to retry", slog.Any("eror", err))
 			time.Sleep(backoff)
 			backoff = min(backoff*2, config.Get().MaxBackoff)
 			continue
@@ -94,7 +94,7 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 		case <-ctx.Done():
 			return nil // context done, exit the loop
 		case err := <-sub.Err():
-			slog.Error("subscription error", slog.Any("err", err))
+			slog.Error("subscription error", slog.Any("error", err))
 			return fmt.Errorf("subscription error, %w", err)
 		case header, ok := <-headers:
 			if !ok {
@@ -107,7 +107,7 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 			// get last sync block number
 			bcMap, err := service.GetBlockSyncMap(ctx, client.GetChainID().Int64(), s.address)
 			if err != nil {
-				slog.Error("get block sync error", slog.Any("err", err))
+				slog.Error("get block sync error", slog.Any("error", err))
 				return fmt.Errorf("get block sync error, %w", err)
 			}
 
@@ -121,7 +121,7 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 				// get the latest sync block header on chain
 				lbHeader, err := client.GetHeaderByNumber(bc.LastSyncNumber)
 				if err != nil {
-					slog.Error("get header error", slog.Any("height", bc.LastSyncNumber), slog.Any("err", err))
+					slog.Error("get header error", slog.Any("height", bc.LastSyncNumber), slog.Any("error", err))
 					continue
 				}
 

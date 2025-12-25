@@ -37,7 +37,7 @@ func (m *RedisManager) InitRedis(name string, dbCnf config.Redis) error {
 		&redis.Options{
 			ReadTimeout:     dbCnf.ReadTimeout,
 			WriteTimeout:    dbCnf.WriteTimeout,
-			Addr:            dbCnf.Host,
+			Addr:            fmt.Sprintf("%s:%d", dbCnf.IP, dbCnf.Port),
 			MaxRetries:      dbCnf.MaxRetries,
 			DialTimeout:     dbCnf.DialTimeout,
 			PoolSize:        dbCnf.PoolSize,

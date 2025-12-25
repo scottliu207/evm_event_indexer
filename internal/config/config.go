@@ -51,19 +51,19 @@ type Config struct {
 		Retry           int              `yaml:"retry"`
 		WaitDuration    time.Duration    `yaml:"wait_duration"`
 		Timeout         time.Duration    `yaml:"timeout"`
-		DBs             map[string]MySQL `yaml:"dbs"`
+		DBs             map[string]MySQL `yaml:"databases"`
 	} `yaml:"mysql"`
 
 	Redis struct {
 		Retry        int              `yaml:"retry"`
 		WaitDuration time.Duration    `yaml:"wait_duration"`
 		PingTimeout  time.Duration    `yaml:"ping_timeout"`
-		DBs          map[string]Redis `yaml:"dbs"`
+		DBs          map[string]Redis `yaml:"databases"`
 	}
 }
 
 type MySQL struct {
-	DBName   string `yaml:"db_name"`
+	Name     string `yaml:"name"`
 	Account  string `yaml:"account"`
 	Password string `yaml:"password"`
 	IP       string `yaml:"ip"`
@@ -79,7 +79,8 @@ type Redis struct {
 	PoolTimeout        time.Duration `yaml:"pool_timeout"`
 	IdleTimeout        time.Duration `yaml:"idle_timeout"`
 	IdleCheckFrequency time.Duration `yaml:"idle_check_frequency"`
-	Host               string        `yaml:"host"`
+	IP                 string        `yaml:"ip"`
+	Port               int           `yaml:"port"`
 	DB                 int           `yaml:"db"`
 }
 
@@ -173,7 +174,7 @@ func (c Config) Validate() error {
 	}
 
 	for _, db := range c.MySQL.DBs {
-		if db.DBName == "" {
+		if db.Name == "" {
 			return fmt.Errorf("mysql.db_name is required")
 		}
 		if db.Account == "" {
@@ -191,8 +192,11 @@ func (c Config) Validate() error {
 	}
 
 	for _, db := range c.Redis.DBs {
-		if db.Host == "" {
-			return fmt.Errorf("redis.host is required")
+		if db.IP == "" {
+			return fmt.Errorf("redis.ip is required")
+		}
+		if db.Port == 0 {
+			return fmt.Errorf("redis.port is required")
 		}
 		if db.ReadTimeout == 0 {
 			return fmt.Errorf("redis.read_timeout is required")

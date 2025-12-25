@@ -27,8 +27,7 @@ type (
 	}
 )
 
-// Create handles creating a new user with Argon2 password hashing.
-// It only supports creating users with default role (1) and enabled status (1).
+// Create creates a new user with Argon2 password hashing
 func Create(c *gin.Context) {
 	res := new(CreateUserRes)
 	c.Set(middleware.CtxResponse, res)

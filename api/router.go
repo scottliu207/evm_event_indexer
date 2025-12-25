@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	authController "evm_event_indexer/api/controller/v1/auth"
 	"evm_event_indexer/api/controller/v1/contracts"
-	"evm_event_indexer/api/controller/v1/users"
 	"evm_event_indexer/api/middleware"
 )
 
@@ -23,9 +23,14 @@ func Routing(router *gin.Engine) {
 		v1 := api.Group("/v1")
 		{
 
-			user := v1.Group("/user")
+			auth := v1.Group("/auth")
 			{
-				user.POST("/login", users.Login)
+				auth.POST("/login", authController.Login)
+				auth.POST("/logout", middleware.AuthValidation(), authController.Logout)
+				auth.POST("/refresh", authController.RotateToken)
+			}
+			// user := v1.Group("/user")
+			{
 				// 	user.POST("/create", middleware.AuthValidation(), users.Create)
 				// 	// user.GET("/list", middleware.AuthValidation(), userController.List)
 				// 	// user.GET("/get/:id", middleware.AuthValidation(), userController.Get)

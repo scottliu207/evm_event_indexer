@@ -2,7 +2,6 @@ services:
 # database
   mysql:
     image: mysql:8.0
-    container_name: evm-event-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -22,7 +21,6 @@ services:
 # redis
   redis:
     image: "redis:8.4.0"
-    container_name: evm-event-redis
     ports:
       - "6379:6379"
     networks:
@@ -58,18 +56,47 @@ services:
       - TZ=UTC # default timezone 
       - WAIT_FOR_START=10s
       - LOG_LEVEL=debug
+      # session
       - SESSION_AT_EXPIRATION=15m
       - SESSION_RT_EXPIRATION=1h
-      - MYSQL_EVENT_DBM_IP=evm-event-mysql
-      - MYSQL_EVENT_DBM_PORT=3306
-      - MYSQL_EVENT_DBM_ACCOUNT=root
-      - MYSQL_EVENT_DBM_PASSWORD=root
-      - MYSQL_EVENT_DBM_DBNAME=event_db
-      - MYSQL_EVENT_DBS_IP=evm-event-mysql
-      - MYSQL_EVENT_DBS_PORT=3306
-      - MYSQL_EVENT_DBS_ACCOUNT=root
-      - MYSQL_EVENT_DBS_PASSWORD=root
-      - MYSQL_EVENT_DBS_DBNAME=event_db
+      # mysql
+      - MYSQL_MAX_OPEN_CONNS=10
+      - MYSQL_MAX_IDLE_CONNS=10
+      - MYSQL_CONN_MAX_LIFE_TIME=5m
+      - MYSQL_RETRY=10
+      - MYSQL_WAIT_DURATION=10s
+      - MYSQL_TIMEOUT=30s
+      # mysql event db
+      - MYSQL_DATABASES_EVENT_DBM_NAME=event_db
+      - MYSQL_DATABASES_EVENT_DBM_IP=mysql
+      - MYSQL_DATABASES_EVENT_DBM_PORT=3306
+      - MYSQL_DATABASES_EVENT_DBM_ACCOUNT=root
+      - MYSQL_DATABASES_EVENT_DBM_PASSWORD=root
+      - MYSQL_DATABASES_EVENT_DBS_NAME=event_db
+      - MYSQL_DATABASES_EVENT_DBS_IP=mysql
+      - MYSQL_DATABASES_EVENT_DBS_PORT=3306
+      - MYSQL_DATABASES_EVENT_DBS_ACCOUNT=root
+      - MYSQL_DATABASES_EVENT_DBS_PASSWORD=root
+      # mysql account db
+      - MYSQL_DATABASES_ACCOUNT_DBM_NAME=account_db
+      - MYSQL_DATABASES_ACCOUNT_DBM_IP=mysql
+      - MYSQL_DATABASES_ACCOUNT_DBM_PORT=3306
+      - MYSQL_DATABASES_ACCOUNT_DBM_ACCOUNT=root
+      - MYSQL_DATABASES_ACCOUNT_DBM_PASSWORD=root
+      - MYSQL_DATABASES_ACCOUNT_DBS_NAME=account_db
+      - MYSQL_DATABASES_ACCOUNT_DBS_IP=mysql
+      - MYSQL_DATABASES_ACCOUNT_DBS_PORT=3306
+      - MYSQL_DATABASES_ACCOUNT_DBS_ACCOUNT=root
+      - MYSQL_DATABASES_ACCOUNT_DBS_PASSWORD=root
+      # redis
+      - REDIS_RETRY=10
+      - REDIS_WAIT_DURATION=1s
+      - REDIS_PING_TIMEOUT=500ms
+      # redis user db
+      - REDIS_DATABASES_USER_IP=redis
+      - REDIS_DATABASES_USER_PORT=6379
+      - REDIS_DATABASES_USER_DB=1
+      # scanner json file path
       - SCANNER_PATH=./config/scanner.docker.json
     volumes:
       - ../config:/app/config:ro

@@ -41,7 +41,7 @@ func (m *MySQLManager) InitMySQL(name string, dbCnf config.MySQL) error {
 			dbCnf.Password,
 			dbCnf.IP,
 			dbCnf.Port,
-			dbCnf.DBName,
+			dbCnf.Name,
 			"Asia%2FTaipei",
 			config.Get().MySQL.Timeout.String(),
 		),
@@ -70,8 +70,8 @@ func (m *MySQLManager) InitMySQL(name string, dbCnf config.MySQL) error {
 		if err != nil {
 			slog.Error(
 				"mysql initialize failure, failed to connect to mysql",
-				slog.Any("DB Name", dbCnf.DBName),
-				slog.Any("err", err),
+				slog.Any("name", dbCnf.Name),
+				slog.Any("error", err),
 				slog.Any("waiting for retry", config.Get().MySQL.WaitDuration.String()),
 				slog.Any("retry", i),
 			)

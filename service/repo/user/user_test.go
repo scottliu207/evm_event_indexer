@@ -9,6 +9,7 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/testutil"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/user"
 	"evm_event_indexer/utils"
@@ -22,7 +23,7 @@ import (
 var ctx = context.TODO()
 
 func TestMain(m *testing.M) {
-	config.LoadConfig("../../../config/config.yaml")
+	testutil.SetupTestConfig()
 
 	dbManager := storage.Forge()
 	if err := dbManager.Init(); err != nil {

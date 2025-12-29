@@ -27,6 +27,7 @@ type (
 )
 
 // Create creates a new user with Argon2 password hashing
+// currently not used
 func Create(c *gin.Context) {
 	res := new(CreateUserRes)
 	c.Set(middleware.CtxResponse, res)

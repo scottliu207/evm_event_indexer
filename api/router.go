@@ -26,15 +26,19 @@ func Routing(router *gin.Engine) {
 			auth := v1.Group("/auth")
 			{
 				auth.POST("/login", authController.Login)
-				auth.POST("/logout", middleware.AuthValidation(), authController.Logout)
+				auth.POST("/logout", authController.Logout)
 				auth.POST("/refresh", authController.RotateToken)
 			}
-			// user := v1.Group("/user")
-			{
-				// 	user.POST("/create", middleware.AuthValidation(), users.Create)
-				// 	// user.GET("/list", middleware.AuthValidation(), userController.List)
-				// 	// user.GET("/get/:id", middleware.AuthValidation(), userController.Get)
-			}
+
+			/*
+				manager api
+					user := v1.Group("/user")
+					{
+						user.POST("/create", users.Create)
+						user.GET("/list",  userController.List)
+						user.GET("/get/:id", userController.Get)
+					}
+			*/
 
 			log := v1.Group("/txn")
 			{

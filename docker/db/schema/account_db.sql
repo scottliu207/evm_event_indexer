@@ -5,7 +5,7 @@ USE `account_db`;
 -- user
 CREATE TABLE `account_db`.`user` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
-  `account` varchar(20) NOT NULL COMMENT 'user account',
+  `account` varchar(50) NOT NULL COMMENT 'user account',
   `status` tinyint unsigned NOT NULL DEFAULT 1 COMMENT 'user status (1: enabled, 2: disabled)',
   `password` varchar(255) NOT NULL COMMENT 'user password',
   `auth_meta` json NOT NULL COMMENT 'user authentication metadata',

@@ -14,7 +14,7 @@ import (
 
 type (
 	LoginReq struct {
-		Account  string `json:"account" binding:"required,max=20"`
+		Account  string `json:"account" binding:"required,max=50"`
 		Password string `json:"password" binding:"required"`
 	}
 

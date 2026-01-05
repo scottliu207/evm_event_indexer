@@ -7,6 +7,7 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service"
+	"evm_event_indexer/service/repo/session"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,7 @@ type (
 
 	RotateTokenRes struct {
 		AccessToken string `json:"access_token"`
+		CSRFToken   string `json:"csrf_token"`
 	}
 )
 
@@ -64,8 +66,16 @@ func RotateToken(c *gin.Context) {
 		AccessToken: at,
 	}
 
-	// set refresh token cookie
+	csrfToken, err := session.NewCSRFToken(rt)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	res.CSRFToken = csrfToken
+
+	// set refresh token & csrf token cookie
 	c.Status(http.StatusOK)
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie("refresh_token", rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
+	c.SetCookie(middleware.CSRFCookieName, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
 }

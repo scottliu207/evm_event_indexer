@@ -67,6 +67,7 @@ var (
 	// account/authorization error
 	ErrAccountAlreadyExists = Err{HTTPCode: http.StatusConflict, ErrorCode: 2000, Message: "account already exists"}
 	ErrInvalidCredentials   = Err{HTTPCode: http.StatusUnauthorized, ErrorCode: 2001, Message: "invalid credentials"}
+	ErrCSRFTokenInvalid     = Err{HTTPCode: http.StatusForbidden, ErrorCode: 2002, Message: "csrf token invalid"}
 
 	// server error
 	ErrInternalServerError = Err{HTTPCode: http.StatusInternalServerError, ErrorCode: 3000, Message: "something went wrong"}

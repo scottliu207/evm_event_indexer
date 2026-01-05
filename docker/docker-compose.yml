@@ -59,6 +59,8 @@ services:
       # session
       - SESSION_AT_EXPIRATION=15m
       - SESSION_RT_EXPIRATION=1h
+      - SESSION_JWT_SECRET=secret
+      - SESSION_CSRF_SECRET=secret
       # mysql
       - MYSQL_MAX_OPEN_CONNS=10
       - MYSQL_MAX_IDLE_CONNS=10

@@ -3,7 +3,8 @@ package erc20
 import (
 	"context"
 	erc20 "evm_event_indexer/generated"
-	internalEth "evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/eth"
+
 	"fmt"
 	"math/big"
 
@@ -14,7 +15,7 @@ import (
 
 type (
 	ERC20Service struct {
-		c          *internalEth.Client
+		c          *eth.Client
 		privateKey string
 	}
 
@@ -24,13 +25,13 @@ type (
 	}
 )
 
-func NewERC20Service(client *internalEth.Client, privateKey string) *ERC20Service {
+func NewERC20Service(client *eth.Client, privateKey string) *ERC20Service {
 	return &ERC20Service{c: client, privateKey: privateKey}
 }
 
 func (i *ERC20Service) Deploy(initialSupply *big.Int) (*DeployResult, error) {
 
-	transactor, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	transactor, err := eth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
@@ -51,7 +52,7 @@ func (i *ERC20Service) Deploy(initialSupply *big.Int) (*DeployResult, error) {
 }
 
 func (i *ERC20Service) Address() (common.Address, error) {
-	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	auth, err := eth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("new transactor failed: %w", err)
 	}
@@ -67,7 +68,7 @@ func (i *ERC20Service) GetBalance(ctx context.Context, contractAddr common.Addre
 }
 
 func (i *ERC20Service) GetBalanceOf(ctx context.Context, contractAddr common.Address, ownerAddr common.Address) (*big.Int, error) {
-	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	contract, err := eth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("get balance failed: %w", err)
 	}
@@ -76,13 +77,13 @@ func (i *ERC20Service) GetBalanceOf(ctx context.Context, contractAddr common.Add
 }
 
 func (i *ERC20Service) Transfer(ctx context.Context, contractAddr common.Address, to common.Address, amount *big.Int) (*types.Transaction, error) {
-	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	auth, err := eth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
 	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	contract, err := eth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
@@ -91,13 +92,13 @@ func (i *ERC20Service) Transfer(ctx context.Context, contractAddr common.Address
 }
 
 func (i *ERC20Service) Approve(ctx context.Context, contractAddr common.Address, spender common.Address, amount *big.Int) (*types.Transaction, error) {
-	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	auth, err := eth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
 	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	contract, err := eth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
@@ -106,13 +107,13 @@ func (i *ERC20Service) Approve(ctx context.Context, contractAddr common.Address,
 }
 
 func (i *ERC20Service) TransferFrom(ctx context.Context, contractAddr common.Address, from common.Address, to common.Address, amount *big.Int) (*types.Transaction, error) {
-	auth, err := internalEth.NewTransactor(i.c.GetChainID(), i.privateKey)
+	auth, err := eth.NewTransactor(i.c.GetChainID(), i.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("new transactor failed: %w", err)
 	}
 	auth.Context = ctx
 
-	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	contract, err := eth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}
@@ -129,7 +130,7 @@ func (i *ERC20Service) GetAllowance(ctx context.Context, contractAddr common.Add
 }
 
 func (i *ERC20Service) GetAllowanceOf(ctx context.Context, contractAddr common.Address, owner common.Address, spender common.Address) (*big.Int, error) {
-	contract, err := internalEth.NewERC20(contractAddr, i.c.Client)
+	contract, err := eth.NewERC20(contractAddr, i.c.Client)
 	if err != nil {
 		return nil, fmt.Errorf("new contract failed: %w", err)
 	}

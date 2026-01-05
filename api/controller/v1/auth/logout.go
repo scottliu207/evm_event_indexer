@@ -47,6 +47,7 @@ func Logout(c *gin.Context) {
 	}
 
 	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+	c.SetCookie(middleware.CSRFCookieName, "", -1, "/", "", false, false)
 
 	*res = LogoutRes{}
 }

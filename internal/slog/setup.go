@@ -1,18 +1,17 @@
 package slog
 
 import (
-	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/config"
 	"log/slog"
 	"os"
 	"strings"
 )
 
+// InitSlog initializes the slog logger, must be called after config is loaded
 func InitSlog() {
 	var slogLevel slog.Level
 
-	// 設定 Log Level, 參數吃 Config 檔中的設定值
-	// Note: 因爲這邊要使用到 Config, 所以初始化的步驟需要在 Config 之後
-	switch strings.ToLower(internalCnf.Get().LogLevel) {
+	switch strings.ToLower(config.Get().LogLevel) {
 	case "panic", "fatal", "error":
 		slogLevel = slog.LevelError
 	case "warn":

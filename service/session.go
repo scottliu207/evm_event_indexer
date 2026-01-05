@@ -4,23 +4,37 @@ import (
 	"context"
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/errors"
-	internalSession "evm_event_indexer/internal/session"
 	"evm_event_indexer/internal/storage"
 	"evm_event_indexer/service/repo/session"
 )
 
+// CreateUserAT creates a user access token
 func CreateUserAT(ctx context.Context, userID int64) (string, error) {
 
 	if userID == 0 {
 		return "", errors.ErrApiInvalidParam.New("user id is 0")
 	}
 
-	at, err := internalSession.NewJWT(config.Get().Session.JWTSecret).GenerateToken(userID, config.Get().Session.ATExpiration)
+	at, err := session.CreateAccessToken(ctx, userID)
 	if err != nil {
-		return "", errors.ErrInternalServerError.Wrap(err, "failed to generate token")
+		return "", errors.ErrInternalServerError.Wrap(err, "failed to create access token")
 	}
 
 	return at, nil
+}
+
+// VerifyUserAT verifies a user access token
+func VerifyUserAT(at string) (int64, error) {
+	userID, err := session.VerifyAccessToken(at)
+	if err != nil {
+		return 0, errors.ErrInvalidCredentials.Wrap(err)
+	}
+
+	if userID == 0 {
+		return 0, errors.ErrInvalidCredentials.New()
+	}
+
+	return userID, nil
 }
 
 // CreateUserRT creates a user refresh token
@@ -40,20 +54,6 @@ func CreateUserRT(ctx context.Context, userID int64) (string, error) {
 	}
 
 	return rt, nil
-}
-
-// VerifyUserAT verifies a user access token
-func VerifyUserAT(at string) (int64, error) {
-	userID, err := internalSession.NewJWT(config.Get().Session.JWTSecret).VerifyToken(at)
-	if err != nil {
-		return 0, errors.ErrInvalidCredentials.Wrap(err)
-	}
-
-	if userID == 0 {
-		return 0, errors.ErrInvalidCredentials.New()
-	}
-
-	return userID, nil
 }
 
 // GetUserByRT gets a userID by refresh token, return InvalidCredentialsError if the refresh token is invalid.

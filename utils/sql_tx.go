@@ -30,7 +30,7 @@ func (t *Tx) Exec(ctx context.Context, txFNs ...FN) error {
 
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("[SQL 回滾失敗] Err:%s", err.Error())
+			log.Printf("[rollback failed] error: %s", err.Error())
 		}
 	}()
 

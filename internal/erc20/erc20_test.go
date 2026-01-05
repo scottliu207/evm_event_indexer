@@ -2,7 +2,7 @@ package erc20_test
 
 import (
 	"context"
-	internalCnf "evm_event_indexer/internal/config"
+	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/erc20"
 	"evm_event_indexer/internal/eth"
 	"evm_event_indexer/internal/testutil"
@@ -30,7 +30,7 @@ func Test_Deploy(t *testing.T) {
 
 	ownerPK := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	client, err := eth.NewClient(ctx, internalCnf.Get().Scanners[0].RpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().Scanners[0].RpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,9 +62,9 @@ func Test_Deploy(t *testing.T) {
 func Test_GetBalance(t *testing.T) {
 
 	ownerPK := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	addr := internalCnf.Get().Scanners[0].Addresses[0].Address
+	addr := config.Get().Scanners[0].Addresses[0].Address
 
-	client, err := eth.NewClient(ctx, internalCnf.Get().Scanners[0].RpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().Scanners[0].RpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func Test_Transfer(t *testing.T) {
 	priv := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 	to := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 
-	client, err := eth.NewClient(ctx, internalCnf.Get().Scanners[0].RpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().Scanners[0].RpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func Test_Transfer(t *testing.T) {
 func Test_DeplayAndTransfer(t *testing.T) {
 	ownerPK := "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	client, err := eth.NewClient(ctx, internalCnf.Get().Scanners[0].RpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().Scanners[0].RpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func Test_ApproveAndTransferFrom(t *testing.T) {
 	spenderPK := "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 	receiverPK := "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
 
-	client, err := eth.NewClient(ctx, internalCnf.Get().Scanners[0].RpcHTTP)
+	client, err := eth.NewClient(ctx, config.Get().Scanners[0].RpcHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}

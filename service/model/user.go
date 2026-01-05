@@ -28,7 +28,7 @@ type (
 	}
 )
 
-// Scan : 實作 sql.Scanner 介面
+// Scan : implement driver.Scanner interface
 func (t *AuthMeta) Scan(val any) error {
 	switch v := val.(type) {
 	case []byte:
@@ -40,7 +40,7 @@ func (t *AuthMeta) Scan(val any) error {
 	}
 }
 
-// Value : 實作 driver.Valuer 界面
+// Value : implement driver.Valuer interface
 func (t *AuthMeta) Value() (driver.Value, error) {
 	if t == nil {
 		return json.Marshal(&AuthMeta{})

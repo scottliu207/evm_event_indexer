@@ -6,6 +6,7 @@ import (
 	"evm_event_indexer/api/controller/v1/auth"
 	"evm_event_indexer/api/protocol"
 	"evm_event_indexer/internal/errors"
+	"evm_event_indexer/service/repo/session"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,19 +32,24 @@ func TestRotateToken_Success(t *testing.T) {
 	assert.Equal(t, 0, loginRes.Code)
 
 	var oldRT string
+	var oldCSRF string
 	for _, c := range loginW.Result().Cookies() {
 		if c.Name == "refresh_token" {
 			oldRT = c.Value
-			break
+		}
+		if c.Name == "csrf_token" {
+			oldCSRF = c.Value
 		}
 	}
 	assert.NotEmpty(t, oldRT, "login should set refresh_token cookie")
+	assert.NotEmpty(t, oldCSRF, "login should set csrf_token cookie")
 
 	reqBody := auth.RotateTokenReq{}
 	body, _ := json.Marshal(reqBody)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", oldCSRF)
 	req.AddCookie(&http.Cookie{
 		Name:     "refresh_token",
 		Value:    oldRT,
@@ -51,6 +57,15 @@ func TestRotateToken_Success(t *testing.T) {
 		Domain:   "localhost",
 		MaxAge:   3600,
 		HttpOnly: true,
+		Secure:   true,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:     "csrf_token",
+		Value:    oldCSRF,
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   3600,
+		HttpOnly: false,
 		Secure:   true,
 	})
 	w := httptest.NewRecorder()
@@ -66,20 +81,27 @@ func TestRotateToken_Success(t *testing.T) {
 	assert.Equal(t, 0, res.Code)
 	assert.Equal(t, "success", res.Message)
 	assert.NotEmpty(t, result["access_token"], "access_token should not be empty")
+	assert.NotEmpty(t, result["csrf_token"], "csrf_token should not be empty")
 
 	// Check refresh token cookie is set
 	cookies := w.Result().Cookies()
 	var refreshTokenCookie *http.Cookie
+	var csrfTokenCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "refresh_token" {
 			refreshTokenCookie = c
-			break
+		}
+		if c.Name == "csrf_token" {
+			csrfTokenCookie = c
 		}
 	}
 	assert.NotNil(t, refreshTokenCookie, "refresh_token cookie should be set")
 	assert.True(t, refreshTokenCookie.HttpOnly, "refresh_token cookie should be HttpOnly")
 	assert.True(t, refreshTokenCookie.Secure, "refresh_token cookie should be Secure")
 	assert.NotEqual(t, oldRT, refreshTokenCookie.Value, "refresh_token cookie should be updated")
+	assert.NotNil(t, csrfTokenCookie, "csrf_token cookie should be set")
+	assert.False(t, csrfTokenCookie.HttpOnly, "csrf_token cookie should not be HttpOnly")
+	assert.True(t, csrfTokenCookie.Secure, "csrf_token cookie should be Secure")
 }
 
 func TestRotateToken_InvalidRefreshToken(t *testing.T) {
@@ -88,6 +110,9 @@ func TestRotateToken_InvalidRefreshToken(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	csrf, err := session.NewCSRFToken("invalid_refresh_token")
+	assert.NoError(t, err)
+	req.Header.Set("X-CSRF-Token", csrf)
 	req.AddCookie(&http.Cookie{
 		Name:     "refresh_token",
 		Value:    "invalid_refresh_token",
@@ -97,13 +122,22 @@ func TestRotateToken_InvalidRefreshToken(t *testing.T) {
 		HttpOnly: true,
 		Secure:   true,
 	})
+	req.AddCookie(&http.Cookie{
+		Name:     "csrf_token",
+		Value:    csrf,
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   3600,
+		HttpOnly: false,
+		Secure:   true,
+	})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 	var res protocol.Response
-	err := json.Unmarshal(w.Body.Bytes(), &res)
+	err = json.Unmarshal(w.Body.Bytes(), &res)
 	assert.NoError(t, err)
 	assert.Equal(t, errors.ErrInvalidCredentials.ErrorCode, res.Code)
 	assert.True(t, strings.HasPrefix(res.Message, errors.ErrInvalidCredentials.Message))

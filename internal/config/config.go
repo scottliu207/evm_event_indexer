@@ -40,6 +40,7 @@ type Config struct {
 	}
 	Session struct {
 		JWTSecret    string        `yaml:"jwt_secret"`
+		CSRFSecret   string        `yaml:"csrf_secret"`
 		ATExpiration time.Duration `yaml:"at_expiration"`
 		RTExpiration time.Duration `yaml:"rt_expiration"`
 	} `yaml:"session"`

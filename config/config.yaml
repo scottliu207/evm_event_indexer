@@ -25,6 +25,7 @@ session:
   at_expiration: "15m"
   rt_expiration: "1h"
   jwt_secret: "secret" # should be replaced from environment variable
+  csrf_secret: "secret" # should be replaced from environment variable
 mysql:
   max_open_conns: 10
   max_idle_conns: 10

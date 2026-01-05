@@ -39,7 +39,7 @@ func Logger() gin.HandlerFunc {
 
 		// get error from gin context, handle only the first error
 		if lastError := c.Errors.Last(); lastError != nil {
-			slog.Error("API response error",
+			slog.Error("API responded with error",
 				slog.Any("statusCode", statusCode),
 				slog.Any("latency", latency/time.Millisecond),
 				slog.Any("method", method),
@@ -51,7 +51,7 @@ func Logger() gin.HandlerFunc {
 		}
 
 		slog.Info(
-			"API response success",
+			"API responded successfully",
 			slog.Any("statusCode", statusCode),
 			slog.Any("latency", latency/time.Millisecond),
 			slog.Any("method", method),

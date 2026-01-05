@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthValidation validates authentication for protected routes
-func AuthValidation() gin.HandlerFunc {
+// Authorization validates authentication for protected routes
+func Authorization() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		at := c.GetHeader("Authorization")

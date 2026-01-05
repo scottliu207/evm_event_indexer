@@ -26,8 +26,8 @@ func Routing(router *gin.Engine) {
 			auth := v1.Group("/auth")
 			{
 				auth.POST("/login", authController.Login)
-				auth.POST("/logout", authController.Logout)
-				auth.POST("/refresh", authController.RotateToken)
+				auth.POST("/logout", middleware.CSRFProtection(), authController.Logout)
+				auth.POST("/refresh", middleware.CSRFProtection(), authController.RotateToken)
 			}
 
 			/*
@@ -43,7 +43,7 @@ func Routing(router *gin.Engine) {
 			log := v1.Group("/txn")
 			{
 				// Add more routes here as needed
-				log.GET("/logs", middleware.AuthValidation(), contracts.GetLog)
+				log.GET("/logs", middleware.Authorization(), contracts.GetLog)
 				// get block
 				// get transaction
 				// get receipt

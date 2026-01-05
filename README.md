@@ -1,260 +1,150 @@
-# EVM Event Indexer
+# Simple EVM Event Indexer
 
-A Go application for indexing and storing EVM blockchain event logs.
+A Go-based EVM event (log) indexer: scan/subscribe contract events based on configuration, persist to MySQL, and expose a query API.
 
 ## Features
 
-- **Auto Sync**: Periodically fetches smart contract event logs from EVM chains
-- **Persistent Storage**: Stores event logs in MySQL database
-- **Sync Status Tracking**: Records synchronization progress for each contract address
-- **Resume Support**: Continues indexing from the last sync position
-- **Error Retry**: Built-in retry mechanism for improved stability
-- **Comprehensive Testing**: Includes unit tests and integration tests
+- **Indexing**: Scan/subscribe event logs by contract address + topics
+- **Reorg**:  Handles chain reorganizations with a configurable reorg window and reprocesses affected logs
+- **Storage**: MySQL for logs + sync state; Redis for storing token
+- **API**: Gin HTTP API (logs query)
+- **Auth**: Access Token (JWT) + Refresh Token (cookie) + CSRF protection
 
-## Architecture
+## Requirements
 
-### Tech Stack
+- Go `1.25.4`
+- Docker + Docker Compose (recommended for local MySQL / Redis / Anvil)
 
-- **Language**: Go 1.24.2
-- **Blockchain Interaction**: go-ethereum (geth) v1.16.7
-- **Database**: MySQL 8.0
-- **Environment Config**: godotenv
-- **Testing Framework**: testify
-
-### Project Structure
+## Project Layout
 
 ```
 .
-├── background/          # Background tasks (event log fetching)
-├── contracts/           # Smart contract related files
-├── docker/              # Docker configuration
-│   ├── db/
-│   │   └── schema/      # Database schema
-│   └── docker-compose.yml
-├── env/                 # Environment configuration
-├── internal/            # Internal packages
-│   ├── erc20/          # ERC20 contract interaction
-│   └── eth/            # Ethereum client wrapper
-├── service/
-│   ├── db/             # Database connection management
-│   ├── model/          # Data models
-│   └── repo/           # Data access layer
-│       ├── blocksync/  # Block sync status
-│       └── eventlog/   # Event logs
-├── utils/              # Utility functions
-├── main.go             # Application entry point
-└── run.sh              # Docker management script
+├── api/                 # HTTP server + routes + middleware
+├── background/          # background workers (scanner/subscription/api server)
+├── cmd/indexer/         # application entrypoint
+├── config/              # config.yaml + scanner*.json
+├── contracts/           # foundry contracts (example ERC20)
+├── docker/              # docker-compose + MySQL init schema
+├── internal/            # internal packages (config/session/storage/decoder/...)
+├── service/             # service layer + repos
+└── utils/               # helpers
 ```
 
-## Getting Started
+## Quick Start (Docker)
 
-### Prerequisites
-
-- Go 1.24.2 or higher
-- Docker and Docker Compose
-- Accessible EVM node (e.g., Hardhat, Ganache, or public chain node)
-
-### Installation
-
-1. **Clone the repository**
-
-```bash
-git clone https://github.com/scottliu207/evm_event_indexer.git
-cd evm_event_indexer
-```
-
-2. **Install dependencies**
-
-```bash
-go mod download
-```
-
-3. **Configure environment variables**
-
-Create a `.env` file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` to configure necessary environment variables (e.g., database connection info).
-
-4. **Start MySQL database**
+1. Start MySQL / Redis / Anvil / indexer
 
 ```bash
 ./run.sh up
 ```
 
-This will start the MySQL container and automatically execute database initialization scripts.
+Note: `run.sh up` will also reset data.
 
-5. **Run the application**
-
-```bash
-go run main.go
-```
-
-## Usage
-
-### Docker Management
+2. Stop services
 
 ```bash
-# Start services
-./run.sh up
-
-# Stop services
 ./run.sh down
-
-# View help
-./run.sh --help
 ```
 
-### Configure Contract Address
-
-Modify the contract address to monitor in `main.go`:
-
-```go
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-```
-
-### View Logs
-
+## Run Locally (Non-Docker)
 ```bash
-# View application logs
-go run main.go
-
-# View MySQL container logs
-docker logs evm-event-mysql
+make run
 ```
-
-## Database Schema
-
-### event_log Table
-
-Stores event log data:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | bigint unsigned | Primary key, auto-increment |
-| address | varchar(128) | Contract address |
-| block_hash | varchar(128) | Block hash |
-| block_number | bigint unsigned | Block number |
-| tx_hash | varchar(128) | Transaction hash |
-| tx_index | bigint unsigned | Transaction index |
-| log_index | bigint unsigned | Log index |
-| data | blob | Event data |
-| block_timestamp | timestamp | Block timestamp |
-| topics | json | Event topics |
-
-**Unique Index**: `(block_number, tx_index, log_index)`
-
-### block_sync Table
-
-Tracks synchronization status:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| address | varchar(128) | Contract address (primary key) |
-| last_sync_number | bigint unsigned | Last synced block number |
-| last_sync_timestamp | timestamp | Last sync time |
-| last_finalized_number | bigint unsigned | Last finalized block number |
-| last_finalized_timestamp | timestamp | Last finalized time |
-| updated_at | timestamp | Update time |
-
-## Development Guide
-
-### Running Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests for specific package
-go test ./service/repo/eventlog
-go test ./service/repo/blocksync
-
-# Run tests with coverage
-go test -cover ./...
-```
-
-### Code Structure
-
-#### Background Worker
-
-`background/get_logs.go` implements event log fetching logic:
-
-- Polls for new events every 5 seconds
-- Fetches events for 100 blocks per iteration
-- Uses transactions to ensure data consistency
-- Built-in retry mechanism (up to 10 retries)
-
-#### Repository Layer
-
-- `eventlog`: Handles CRUD operations for event logs
-- `blocksync`: Manages block synchronization status
-
-All database operations are wrapped in transactions to ensure data consistency.
-
-### Adding New Features
-
-1. **Add new event handlers**: Create new workers in the `background/` directory
-2. **Add new data models**: Define in `service/model/`
-3. **Add new data access layer**: Implement in `service/repo/`
-4. **Add tests**: Write corresponding test files for new features
 
 ## Configuration
 
-### Environment Variables
+### Main config (`config/config.yaml`)
 
-Configure the following variables in the `.env` file:
+- Main config file: `config/config.yaml`
+- Scanner JSON path: `scanner_path` (e.g. `./config/scanner.json`)
+- Viper reads environment variables to override YAML (e.g. `SESSION_JWT_SECRET`)
 
-```env
-# MySQL configuration
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=root
-MYSQL_DATABASE=event_db
+Common environment variables (see `docker/docker-compose.yml` for the full set):
 
-# EVM node configuration
-ETH_RPC_URL=http://localhost:8545
-```
+- `API_PORT`
+- `SCANNER_PATH`
+- `SESSION_JWT_SECRET`
+- `SESSION_CSRF_SECRET`
+- `MYSQL_DATABASES_*`
+- `REDIS_DATABASES_*`
 
-### Adjust Sync Parameters
+### Scanner config (`config/scanner*.json`)
 
-You can adjust parameters in `background/get_logs.go`:
+- `config/scanner.json`: scanner config for local runs
+- `config/scanner.docker.json`: scanner config used by Docker compose (via `SCANNER_PATH`)
 
-```go
-size := uint64(100)                        // Number of blocks to fetch per iteration
-ticker := time.NewTicker(time.Second * 5)  // Polling interval
-const RETRY = 10                           // Maximum retry attempts
-```
+Scanner JSON key fields:
 
-## Troubleshooting
+- `rpc_http` / `rpc_ws`
+- `batch_size`
+- `addresses[]`:
+  - `address`: contract address
+  - `topics[]`: event signatures (strings); the indexer hashes them with `keccak256` as topic0
 
-### MySQL Connection Failed
+## API
+
+- `GET /api/status`: health check
+- `POST /api/v1/auth/login`: login, returns `access_token` and sets cookies (`refresh_token` / `csrf_token`)
+- `POST /api/v1/auth/refresh`: rotate access/refresh token (cookie-based; requires CSRF)
+- `POST /api/v1/auth/logout`: logout, deletes refresh token (cookie-based; requires CSRF)
+- `GET /api/v1/txn/logs`: query event logs (requires `Authorization: Bearer <access_token>`)
+
+## Auth & CSRF
+
+This project stores the refresh token in a cookie (`refresh_token`), so endpoints that rely on this cookie are protected with CSRF checks (double-submit cookie + header).
+
+### Cookies
+
+- `refresh_token`: `HttpOnly` + `Secure` (not readable by browser JS)
+- `csrf_token`: `Secure`, **not** `HttpOnly` (readable by browser JS)
+
+### Flow
+
+1. `POST /api/v1/auth/login`
+   - Response JSON: `access_token`, `csrf_token`
+   - Response cookies: `refresh_token`, `csrf_token`
+2. `POST /api/v1/auth/refresh` / `POST /api/v1/auth/logout`
+   - Browser must send cookies: `fetch(..., { credentials: "include" })` (or axios `withCredentials: true`)
+   - Must include header: `X-CSRF-Token: <csrf_token>`
+     - `<csrf_token>` can be read from the `csrf_token` cookie or from the login/refresh JSON response
+
+Notes:
+
+- The CSRF middleware only requires `X-CSRF-Token` when the request includes the `refresh_token` cookie; missing refresh token behavior is handled by each endpoint (e.g. refresh returns invalid credentials; logout remains idempotent).
+
+## Database Schema
+
+MySQL schema is initialized by `docker/db/schema/*.sql`:
+
+- `docker/db/schema/event_db.sql`:
+  - `event_log`: event logs (`chain_id`, `topic_0..3`, `decoded_event`, `block_timestamp`)
+  - `block_sync`: sync state (primary key: `(chain_id, address)`)
+- `docker/db/schema/account_db.sql`:
+  - `user`: login accounts (argon2 hash + `auth_meta`)
+
+## Development
+
+### Tests
 
 ```bash
-# Check MySQL container status
-docker ps -a | grep mysql
-
-# View MySQL logs
-docker logs evm-event-mysql
-
-# Restart MySQL
-./run.sh down
-./run.sh up
+go test ./...
 ```
 
-### Event Fetching Failed
+Local test api credentials:
+- account: `root`
+- password: `root`
 
-1. Verify EVM node is accessible
-2. Check if contract address is correct
-3. Review error messages in application logs
+### Contract bindings
 
-### Database Initialization Failed
+Requires `forge`, `jq`, and `abigen`:
 
 ```bash
-# Clean up old data and reinitialize
-docker compose -p evm-event-indexer -f docker/docker-compose.yml down -v
-./run.sh up
+make gen
+```
+
+### Deploy / Transfer (Anvil in Docker)
+
+```bash
+make deploy
+make transfer
 ```

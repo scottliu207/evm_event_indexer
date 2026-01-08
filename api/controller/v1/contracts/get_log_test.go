@@ -57,11 +57,11 @@ func TestGetLog_Success(t *testing.T) {
 	}
 
 	require.NoError(t, utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		return logRepo.TxUpsertLog(ctx, tx, logRow)
+		return logRepo.TxInsertLog(ctx, tx, logRow)
 	}))
 	t.Cleanup(func() {
 		_ = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-			return logRepo.TxDeleteLog(ctx, tx, address, 0, 10)
+			return logRepo.TxDeleteLog(ctx, tx, address, 0)
 		})
 	})
 
@@ -195,11 +195,11 @@ func TestGetLog_InvalidRequest(t *testing.T) {
 	}
 
 	assert.NoError(t, utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		return logRepo.TxUpsertLog(ctx, tx, logRow)
+		return logRepo.TxInsertLog(ctx, tx, logRow)
 	}))
 	t.Cleanup(func() {
 		_ = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-			return logRepo.TxDeleteLog(ctx, tx, address, 0, 10)
+			return logRepo.TxDeleteLog(ctx, tx, address, 0)
 		})
 	})
 

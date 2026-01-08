@@ -51,7 +51,7 @@ func (s *Subscription) Run(ctx context.Context) error {
 
 			defer sub.Unsubscribe()
 
-			if err := s.subscription(ctx, sub, headers); err != nil {
+			if err := s.subscription(ctx, client, sub, headers); err != nil {
 				return err
 			}
 
@@ -75,19 +75,12 @@ func (s *Subscription) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscription, headers chan *types.Header) error {
+func (s *Subscription) subscription(ctx context.Context, client *eth.Client, sub ethereum.Subscription, headers chan *types.Header) error {
 
 	if len(config.Get().Scanners) == 0 {
 		slog.Warn("no contract addresses configured, skip subscription reorg check")
 		return nil
 	}
-
-	client, err := eth.NewClient(ctx, s.rpcWS)
-	if err != nil {
-		return err
-	}
-
-	defer client.Close()
 
 	for {
 		select {

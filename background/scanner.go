@@ -73,6 +73,9 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	now := time.Now()
 
+	ctx, cancel := context.WithTimeout(ctx, config.Get().Timeout)
+	defer cancel()
+
 	bc, err := service.GetBlockSync(ctx, client.GetChainID().Int64(), s.Address)
 	if err != nil {
 		return fmt.Errorf("get block sync status error: %w", err)
@@ -83,7 +86,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 	}
 
 	// default start from block 0
-	syncBlock := uint64(0)
+	syncBlock := uint64(config.Get().StartBlock)
 
 	// if there is no sync block, start from 0
 	if bc.LastSyncNumber > 0 {

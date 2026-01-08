@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	ScannerPath  string        `yaml:"scanner_path"`
+	StartBlock   uint64        `yaml:"start_block"`
 	WaitForStart time.Duration `yaml:"wait_for_start"`
 	Scanners     []struct {    // json file, should located in the same directory as the config file
 		RpcHTTP   string `json:"rpc_http"`

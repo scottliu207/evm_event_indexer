@@ -10,11 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	CSRFCookieName = "csrf_token"
-	CSRFHeaderName = "X-CSRF-Token"
-)
-
 // CSRFProtection validates CSRF token for requests.
 func CSRFProtection() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -27,8 +22,8 @@ func CSRFProtection() gin.HandlerFunc {
 			return
 		}
 
-		csrfCookie, _ := c.Cookie(CSRFCookieName)
-		csrfHeader := strings.TrimSpace(c.GetHeader(CSRFHeaderName))
+		csrfCookie, _ := c.Cookie(CookieNameCSRFToken)
+		csrfHeader := strings.TrimSpace(c.GetHeader("X-CSRF-Token"))
 		if csrfCookie == "" || csrfHeader == "" {
 			c.Error(errors.ErrCSRFTokenInvalid.New("csrf token is required"))
 			c.Abort()

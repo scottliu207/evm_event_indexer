@@ -76,6 +76,6 @@ func RotateToken(c *gin.Context) {
 	// set refresh token & csrf token cookie
 	c.Status(http.StatusOK)
 	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie("refresh_token", rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
-	c.SetCookie(middleware.CSRFCookieName, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
+	c.SetCookie(middleware.CookieNameRefreshToken, rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
+	c.SetCookie(middleware.CookieNameCSRFToken, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
 }

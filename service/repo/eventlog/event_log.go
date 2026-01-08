@@ -234,7 +234,6 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	sql.WriteString(" SELECT ")
 	sql.WriteString("   COUNT(*) ")
 	sql.WriteString(" FROM event_db.event_log ")
-	sql.WriteString(" WHERE ")
 
 	if filter.ChainID != 0 {
 		wheres = append(wheres, " chain_id = ? ")
@@ -288,7 +287,10 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 		wheres = append(wheres, " block_number >= ? ")
 	}
 
-	sql.WriteString(strings.Join(wheres, " AND "))
+	if len(wheres) > 0 {
+		sql.WriteString(" WHERE ")
+		sql.WriteString(strings.Join(wheres, " AND "))
+	}
 
 	var total int64
 	err := db.QueryRowContext(ctx, sql.String(), params...).Scan(&total)

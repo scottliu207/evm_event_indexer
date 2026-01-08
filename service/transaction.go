@@ -98,12 +98,6 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 	if params.Checkpoint == 0 {
 		return fmt.Errorf("checkpoint is 0")
 	}
-	if params.LastSyncNumber == 0 {
-		return fmt.Errorf("last sync number is 0")
-	}
-	if params.ReorgHash == "" {
-		return fmt.Errorf("reorg hash is empty")
-	}
 	if params.Now.IsZero() {
 		return fmt.Errorf("now is zero")
 	}

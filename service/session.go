@@ -63,7 +63,7 @@ func GetUserIDByRT(ctx context.Context, rt string) (int64, error) {
 		return 0, errors.ErrInternalServerError.Wrap(err, "failed to get redis")
 	}
 
-	userID, err := session.GetUserIDByRefreshToken(ctx, client, rt)
+	userID, err := session.GetUserIDByRT(ctx, client, rt)
 	if err != nil {
 		return 0, errors.ErrInternalServerError.Wrap(err, "failed to get user id by refresh token")
 	}
@@ -87,8 +87,27 @@ func DeleteUserRT(ctx context.Context, rt string) error {
 		return errors.ErrInternalServerError.Wrap(err, "failed to get redis")
 	}
 
-	err = session.DeleteRefreshToken(ctx, client, rt)
+	if err = session.DeleteRefreshTokenByRT(ctx, client, rt); err != nil {
+		return errors.ErrInternalServerError.Wrap(err, "failed to delete refresh token")
+	}
+
+	return nil
+
+}
+
+// DeleteUserRT deletes a user refresh token
+func DeleteUserRTByUserID(ctx context.Context, userID int64) error {
+
+	if userID == 0 {
+		return errors.ErrApiInvalidParam.New("user id is 0")
+	}
+
+	client, err := storage.GetRedis(config.RedisUser)
 	if err != nil {
+		return errors.ErrInternalServerError.Wrap(err, "failed to get redis")
+	}
+
+	if err = session.DeleteRefreshTokenByUserID(ctx, client, userID); err != nil {
 		return errors.ErrInternalServerError.Wrap(err, "failed to delete refresh token")
 	}
 

@@ -140,19 +140,19 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 			break
 		}
 
-		// otherwise, move on to next page
-		page++
-
 		// if we have reached the limit, break
 		if page*size >= limit {
 			break
 		}
+
+		// otherwise, move on to next page
+		page++
 	}
 
 	// if we haven't found the checkpoint, reorg by fixed window * 2
 	if !found {
 		// block number fallback to fixed window * 2
-		checkpoint = max(uint64(0), lastSyncNumber-uint64(config.Get().ReorgWindow*2))
+		checkpoint = uint64(max(int64(0), int64(lastSyncNumber)-int64(config.Get().ReorgWindow*2)))
 		slog.Debug("reorg checkpoint not found within windowlimit, fallback to fixed window * 2",
 			slog.Any("lastSyncNumber", lastSyncNumber),
 			slog.Any("checkpoint", checkpoint),

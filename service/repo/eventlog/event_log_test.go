@@ -41,7 +41,7 @@ func Test_LogRepo(t *testing.T) {
 
 	addr := "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 	err = utils.NewTx(db).Exec(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		return eventlog.TxUpsertLog(ctx, tx, &model.Log{
+		return eventlog.TxInsertLog(ctx, tx, &model.Log{
 			Address:        addr,
 			ChainID:        31337,
 			BlockHash:      common.Hash{}.String(),

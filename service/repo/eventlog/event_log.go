@@ -9,7 +9,7 @@ import (
 )
 
 // Upsert log into db
-func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
+func TxInsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	var sql strings.Builder
 	var params []any
 	var placeholder = make([]string, len(log))
@@ -51,17 +51,6 @@ func TxUpsertLog(ctx context.Context, tx *sql.Tx, log ...*model.Log) error {
 	}
 
 	sql.WriteString(strings.Join(placeholder, ","))
-
-	sql.WriteString(" ON DUPLICATE KEY UPDATE")
-	sql.WriteString("	`block_hash` = VALUES(`block_hash`), ")
-	sql.WriteString("	`topic_0` = VALUES(`topic_0`), ")
-	sql.WriteString("	`topic_1` = VALUES(`topic_1`), ")
-	sql.WriteString("	`topic_2` = VALUES(`topic_2`), ")
-	sql.WriteString("	`topic_3` = VALUES(`topic_3`), ")
-	sql.WriteString("	`tx_hash` = VALUES(`tx_hash`), ")
-	sql.WriteString("	`data` = VALUES(`data`), ")
-	sql.WriteString("	`decoded_event` = VALUES(`decoded_event`), ")
-	sql.WriteString("	`block_timestamp` = VALUES(`block_timestamp`) ")
 
 	_, err := tx.ExecContext(ctx, sql.String(), params...)
 	if err != nil {
@@ -234,7 +223,6 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	sql.WriteString(" SELECT ")
 	sql.WriteString("   COUNT(*) ")
 	sql.WriteString(" FROM event_db.event_log ")
-	sql.WriteString(" WHERE ")
 
 	if filter.ChainID != 0 {
 		wheres = append(wheres, " chain_id = ? ")
@@ -288,7 +276,10 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 		wheres = append(wheres, " block_number >= ? ")
 	}
 
-	sql.WriteString(strings.Join(wheres, " AND "))
+	if len(wheres) > 0 {
+		sql.WriteString(" WHERE ")
+		sql.WriteString(strings.Join(wheres, " AND "))
+	}
 
 	var total int64
 	err := db.QueryRowContext(ctx, sql.String(), params...).Scan(&total)
@@ -299,19 +290,18 @@ func GetTotal(ctx context.Context, db *sql.DB, filter *GetLogParam) (int64, erro
 	return total, nil
 }
 
-func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, fromBN uint64, toBN uint64) error {
+// deletes event logs after a given block number
+func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, fromBN uint64) error {
 	const sql = `
 		DELETE FROM event_db.event_log
 		WHERE 
 		  address = ?
 		  AND block_number >= ?
-		  AND block_number <= ?
 	`
 	var params []any
 
 	params = append(params, address)
 	params = append(params, fromBN)
-	params = append(params, toBN)
 
 	_, err := tx.ExecContext(ctx, sql, params...)
 	if err != nil {

@@ -97,6 +97,8 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 	page := int32(1)
 	// batch size
 	size := config.Get().ReorgWindow
+
+	limit := config.Get().ReorgWindow * 2
 	for {
 
 		// get batch logs to find the rollback checkpoint
@@ -124,7 +126,7 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 			// if block hash matches, means we have found the checkpoint
 			if header.Hash().String() == log.BlockHash {
 				found = true
-				reorgHash = header.Hash().String()
+				reorgHash = header.Hash().Hex()
 				break
 			}
 
@@ -138,8 +140,31 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 			break
 		}
 
+		// if we have reached the limit, break
+		if page*size >= limit {
+			break
+		}
+
 		// otherwise, move on to next page
 		page++
+	}
+
+	// if we haven't found the checkpoint, reorg by fixed window * 2
+	if !found {
+		// block number fallback to fixed window * 2
+		checkpoint = uint64(max(int64(0), int64(lastSyncNumber)-int64(config.Get().ReorgWindow*2)))
+		slog.Debug("reorg checkpoint not found within windowlimit, fallback to fixed window * 2",
+			slog.Any("lastSyncNumber", lastSyncNumber),
+			slog.Any("checkpoint", checkpoint),
+			slog.Any("limit", limit),
+		)
+
+		// get the header from chain
+		header, err := client.GetHeaderByNumber(checkpoint)
+		if err != nil {
+			return fmt.Errorf("failed to get header: %w", err)
+		}
+		reorgHash = header.Hash().Hex()
 	}
 
 	params := &service.ReorgLogParam{

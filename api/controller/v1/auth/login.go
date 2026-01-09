@@ -42,6 +42,14 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// delete old refresh token if exists
+	rtCookie, _ := c.Cookie(middleware.CookieNameRefreshToken)
+	if rtCookie != "" {
+		if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
+			slog.Error("failed to delete refresh token", slog.Any("error", err), slog.Any("userID", user.ID))
+		}
+	}
+
 	at, err := service.CreateUserAT(c.Request.Context(), user.ID)
 	if err != nil {
 		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to create access token"))
@@ -52,14 +60,6 @@ func Login(c *gin.Context) {
 	if err != nil {
 		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to create refresh token"))
 		return
-	}
-
-	// delete old refresh token if exists
-	rtCookie, _ := c.Cookie("refresh_token")
-	if rtCookie != "" {
-		if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
-			slog.Error("failed to delete refresh token", slog.Any("error", err), slog.Any("userID", user.ID))
-		}
 	}
 
 	*res = LoginRes{
@@ -78,6 +78,6 @@ func Login(c *gin.Context) {
 	c.Status(http.StatusOK)
 	// cross site
 	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie("refresh_token", rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
-	c.SetCookie(middleware.CSRFCookieName, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
+	c.SetCookie(middleware.CookieNameRefreshToken, rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
+	c.SetCookie(middleware.CookieNameCSRFToken, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
 }

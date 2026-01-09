@@ -1,6 +1,7 @@
 #
 scanner_path: "./config/scanner.json"
 wait_for_start: "0s"
+start_block: 0
 decoders: 
   - name: "Transfer"
     signature: "Transfer(address,address,uint256)"

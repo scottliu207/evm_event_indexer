@@ -4,7 +4,6 @@ import (
 	"evm_event_indexer/api/middleware"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,26 +27,18 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	// get refresh token from cookie
-	rtCookie, err := c.Cookie("refresh_token")
-	if err != nil && err != http.ErrNoCookie {
-		c.Error(errors.ErrInvalidCredentials.New("refresh token is not found"))
-		return
-	}
-
-	// if refresh token is not found, return directly
-	if rtCookie == "" {
+	userID := c.GetInt64(middleware.CtxUserID)
+	if userID == 0 {
+		c.Error(errors.ErrInvalidCredentials.New("user id not found"))
 		return
 	}
 
 	// delete refresh token
-	if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
+	if err := service.DeleteUserRTByUserID(c.Request.Context(), userID); err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
-	c.SetCookie(middleware.CSRFCookieName, "", -1, "/", "", false, false)
-
-	*res = LogoutRes{}
+	c.SetCookie(middleware.CookieNameRefreshToken, "", -1, "/", "", false, true)
+	c.SetCookie(middleware.CookieNameCSRFToken, "", -1, "/", "", false, false)
 }

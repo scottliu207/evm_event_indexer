@@ -53,12 +53,22 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 	}
 
 	if err := utils.NewTx(db).Exec(ctx,
+		// lock the block sync record for update
+		func(ctx context.Context, tx *sql.Tx) error {
+			return blocksync.TxSelectForUpdateBlockSync(ctx, tx, params.ChainID, params.Address)
+		},
+		// delete the logs after the last sync number
+		func(ctx context.Context, tx *sql.Tx) error {
+			return eventlog.TxDeleteLog(ctx, tx, params.Address, params.LastSyncNumber)
+		},
+		// upsert the logs
 		func(ctx context.Context, tx *sql.Tx) error {
 			if len(params.Logs) == 0 {
 				return nil
 			}
-			return eventlog.TxUpsertLog(ctx, tx, params.Logs...)
+			return eventlog.TxInsertLog(ctx, tx, params.Logs...)
 		},
+		// upsert the block sync record
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 				ChainID:        params.ChainID,
@@ -98,12 +108,6 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 	if params.Checkpoint == 0 {
 		return fmt.Errorf("checkpoint is 0")
 	}
-	if params.LastSyncNumber == 0 {
-		return fmt.Errorf("last sync number is 0")
-	}
-	if params.ReorgHash == "" {
-		return fmt.Errorf("reorg hash is empty")
-	}
 	if params.Now.IsZero() {
 		return fmt.Errorf("now is zero")
 	}
@@ -114,8 +118,12 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 	}
 
 	err = utils.NewTx(db).Exec(ctx,
+		// lock the block sync record for update
 		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, params.Address, params.Checkpoint, params.LastSyncNumber)
+			return blocksync.TxSelectForUpdateBlockSync(ctx, tx, params.ChainID, params.Address)
+		},
+		func(ctx context.Context, tx *sql.Tx) error {
+			return eventlog.TxDeleteLog(ctx, tx, params.Address, params.Checkpoint)
 		},
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{

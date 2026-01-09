@@ -123,3 +123,13 @@ func GetBlockSyncMap(ctx context.Context, db *sql.DB, chainID int64, addresses [
 
 	return res, nil
 }
+
+// selects the block sync record for update
+func TxSelectForUpdateBlockSync(ctx context.Context, tx *sql.Tx, chainID int64, address string) error {
+	const sql = `SELECT * FROM event_db.block_sync WHERE chain_id = ? AND address = ? FOR UPDATE`
+	_, err := tx.ExecContext(ctx, sql, chainID, address)
+	if err != nil {
+		return err
+	}
+	return nil
+}

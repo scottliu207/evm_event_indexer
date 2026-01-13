@@ -69,6 +69,7 @@ type GetLogParam struct {
 	BlockNumberLTE uint64
 	BlockNumberGTE uint64
 	TxHash         string
+	BlockHash      string
 	Topic0         string
 	Topic1         string
 	Topic2         string
@@ -153,6 +154,11 @@ func GetLogs(ctx context.Context, db *sql.DB, filter *GetLogParam) ([]*model.Log
 	if filter.BlockNumberGTE > 0 {
 		params = append(params, filter.BlockNumberGTE)
 		wheres = append(wheres, " block_number >= ? ")
+	}
+
+	if filter.BlockHash != "" {
+		params = append(params, filter.BlockHash)
+		wheres = append(wheres, " block_hash = ? ")
 	}
 
 	sql.WriteString(strings.Join(wheres, " AND "))
@@ -296,7 +302,7 @@ func TxDeleteLog(ctx context.Context, tx *sql.Tx, address string, fromBN uint64)
 		DELETE FROM event_db.event_log
 		WHERE 
 		  address = ?
-		  AND block_number >= ?
+		  AND block_number > ?
 	`
 	var params []any
 

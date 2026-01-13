@@ -2,8 +2,8 @@ package background
 
 import (
 	"context"
+	"errors"
 	"evm_event_indexer/internal/config"
-	"evm_event_indexer/service"
 
 	"evm_event_indexer/internal/eth"
 
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -23,6 +24,7 @@ type Subscription struct {
 	address []string
 }
 
+// for now, only handle removed log, new log will be handled by scanner
 func NewSubscription(rpcHTTP string, rpcWS string, address []string) *Subscription {
 	return &Subscription{
 		rpcHTTP: rpcHTTP,
@@ -36,7 +38,7 @@ func (s *Subscription) Run(ctx context.Context) error {
 	for {
 
 		err := func() error {
-			headers := make(chan *types.Header)
+			ch := make(chan types.Log)
 			client, err := eth.NewClient(ctx, s.rpcWS)
 			if err != nil {
 				return err
@@ -44,14 +46,21 @@ func (s *Subscription) Run(ctx context.Context) error {
 
 			defer client.Close()
 
-			sub, err := client.Subscribe(headers)
+			addresses := make([]common.Address, len(s.address))
+			for i := range s.address {
+				addresses[i] = common.HexToAddress(s.address[i])
+			}
+
+			sub, err := client.SubscribeFilterLogs(ch, ethereum.FilterQuery{
+				Addresses: addresses,
+			})
 			if err != nil {
 				return err
 			}
 
 			defer sub.Unsubscribe()
 
-			if err := s.subscription(ctx, client, sub, headers); err != nil {
+			if err := s.subscription(ctx, sub, ch); err != nil {
 				return err
 			}
 
@@ -75,11 +84,10 @@ func (s *Subscription) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Subscription) subscription(ctx context.Context, client *eth.Client, sub ethereum.Subscription, headers chan *types.Header) error {
+func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscription, ch chan types.Log) error {
 
-	if len(config.Get().Scanners) == 0 {
-		slog.Warn("no contract addresses configured, skip subscription reorg check")
-		return nil
+	if len(s.address) == 0 {
+		return errors.New("no contract addresses configured, skip subscription reorg check")
 	}
 
 	for {
@@ -89,54 +97,31 @@ func (s *Subscription) subscription(ctx context.Context, client *eth.Client, sub
 		case err := <-sub.Err():
 			slog.Error("subscription error", slog.Any("error", err))
 			return fmt.Errorf("subscription error, %w", err)
-		case header, ok := <-headers:
+		case log, ok := <-ch:
+
 			if !ok {
 				slog.Error("headers channel closed")
 				return fmt.Errorf("headers channel closed")
 			}
 
-			slog.Info("new block", slog.Any("block number", header.Number), slog.Any("new", header))
-
-			// get last sync block number
-			bcMap, err := service.GetBlockSyncMap(ctx, client.GetChainID().Int64(), s.address)
-			if err != nil {
-				slog.Error("get block sync error", slog.Any("error", err))
-				return fmt.Errorf("get block sync error, %w", err)
+			// skip new log, it will be handled by scanner
+			if !log.Removed {
+				slog.Info("new log, skipping reorg process", slog.Any("address", log.Address.Hex()), slog.Any("block number", log.BlockNumber))
+				continue
 			}
 
-			for _, addr := range s.address {
-				bc, ok := bcMap[addr]
-				if !ok || bc == nil || bc.LastSyncNumber == 0 || bc.LastSyncHash == "" {
-					slog.Warn("no block sync found, skipping reorg process", slog.Any("address", addr))
-					continue
-				}
+			ReorgProducer(&reorgMsg{
+				Log:             log,
+				Backoff:         config.Get().Backoff,
+				ContractAddress: log.Address.Hex(),
+				RpcHttp:         s.rpcHTTP,
+				Retry:           0,
+			})
 
-				// get the latest sync block header on chain
-				lbHeader, err := client.GetHeaderByNumber(bc.LastSyncNumber)
-				if err != nil {
-					slog.Error("get header error", slog.Any("height", bc.LastSyncNumber), slog.Any("error", err))
-					continue
-				}
-
-				// check if the latest sync block hash is the same as the block hash on chain
-				if lbHeader.Hash().String() == bc.LastSyncHash {
-					continue
-				}
-
-				ReorgProducer(&reorgMsg{
-					LastSyncNumber:  bc.LastSyncNumber,
-					Backoff:         config.Get().Backoff,
-					ContractAddress: addr,
-					RpcHttp:         s.rpcHTTP,
-					Retry:           0,
-				})
-
-				slog.Info("reorg happened",
-					slog.Any("block number", header.Number),
-					slog.Any("last sync number", bc.LastSyncNumber),
-					slog.Any("rollback hash", lbHeader.Hash().String()),
-				)
-			}
+			slog.Info("reorg happened",
+				slog.Any("block number", log.BlockNumber),
+				slog.Any("txhash", log.TxHash.Hex()),
+			)
 		}
 	}
 }

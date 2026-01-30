@@ -33,12 +33,12 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	// delete refresh token
-	if err := service.DeleteUserRTByUserID(c.Request.Context(), userID); err != nil {
+	// revoke user session
+	if err := service.RevokeUserSession(c.Request.Context(), userID); err != nil {
 		c.Error(err)
 		return
 	}
 
+	// delete refresh token cookie
 	c.SetCookie(middleware.CookieNameRefreshToken, "", -1, "/", "", false, true)
-	c.SetCookie(middleware.CookieNameCSRFToken, "", -1, "/", "", false, false)
 }

@@ -58,7 +58,6 @@ func main() {
 				topics = append(topics, common.Hash(crypto.Keccak256([]byte(topic))))
 			}
 
-			continue
 			// register scanner, each contract has its own scanner
 			bgManager.AddWorker(background.NewScanner(scan.RpcHTTP, address.Address, [][]common.Hash{topics}, scan.BatchSize))
 		}

@@ -5,5 +5,5 @@ const (
 	CtxResponse = "response"
 
 	CookieNameRefreshToken = "refresh_token"
-	CookieNameCSRFToken    = "csrf_token"
+	HeaderNameCSRFToken    = "X-CSRF-Token"
 )

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -20,6 +21,11 @@ type JWT struct {
 	secret []byte
 }
 
+type JwtClaim struct {
+	Sid string `json:"sid"`
+	jwt.RegisteredClaims
+}
+
 func NewJWT(secret string) *JWT {
 	return &JWT{
 		secret: []byte(secret),
@@ -27,36 +33,46 @@ func NewJWT(secret string) *JWT {
 }
 
 // GenerateToken generates a JWT token for a given user ID and expiration time
-func (j *JWT) GenerateToken(userID int64, expiration time.Duration) (string, error) {
+func (j *JWT) GenerateToken(userID int64, sessionID string, expiration time.Duration) (string, *jwt.Token, error) {
 	if len(j.secret) == 0 {
-		return "", fmt.Errorf("jwt secret is empty")
+		return "", nil, fmt.Errorf("jwt secret is empty")
 	}
 	if expiration <= 0 {
-		return "", fmt.Errorf("jwt expiration must be > 0")
+		return "", nil, fmt.Errorf("jwt expiration must be > 0")
 	}
 
 	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Subject:   strconv.FormatInt(userID, 10),
-		ExpiresAt: jwt.NewNumericDate(now.Add(expiration)),
-		IssuedAt:  jwt.NewNumericDate(now),
-		ID:        uuid.NewString(),
-		Issuer:    jwtIssuer,
-		Audience:  jwt.ClaimStrings{jwtAudience},
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, JwtClaim{
+		Sid: sessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   strconv.FormatInt(userID, 10),
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiration)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ID:        uuid.NewString(),
+			Issuer:    jwtIssuer,
+			Audience:  jwt.ClaimStrings{jwtAudience},
+		},
 	})
-	return token.SignedString(j.secret)
+
+	tokenStr, err := token.SignedString(j.secret)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return tokenStr, token, nil
 }
 
-// VerifyToken verifies a JWT token and returns the user ID if the token is valid
-// If the token is invalid, it returns userID = 0 and nil error
-func (j *JWT) VerifyToken(tokenString string) (int64, error) {
+// VerifyToken verifies a JWT token and returns the claims
+// If the token is invalid, it returns nil claims and nil error
+// error returns only when server errors occur
+func (j *JWT) VerifyToken(tokenString string) (*JwtClaim, error) {
 	if len(j.secret) == 0 {
-		return 0, fmt.Errorf("jwt secret is empty")
+		return nil, fmt.Errorf("jwt secret is empty")
 	}
 
 	raw := strings.TrimSpace(tokenString)
 	if raw == "" {
-		return 0, fmt.Errorf("token is empty")
+		return nil, nil
 	}
 
 	if strings.HasPrefix(strings.ToLower(raw), "bearer ") {
@@ -64,38 +80,58 @@ func (j *JWT) VerifyToken(tokenString string) (int64, error) {
 	}
 
 	if raw == "" {
-		return 0, fmt.Errorf("invalid token: token is empty")
+		return nil, nil
 	}
 
-	claims := new(jwt.RegisteredClaims)
 	parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
-	tokenObj, err := parser.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
+	tokenObj, err := parser.ParseWithClaims(raw, new(JwtClaim), func(token *jwt.Token) (any, error) {
 		return j.secret, nil
 	})
 	if err != nil {
-		return 0, err
+		// Non-server errors should be treated as invalid credentials.
+		if errors.Is(err, jwt.ErrTokenMalformed) ||
+			errors.Is(err, jwt.ErrTokenUnverifiable) ||
+			errors.Is(err, jwt.ErrTokenSignatureInvalid) ||
+			errors.Is(err, jwt.ErrTokenExpired) ||
+			errors.Is(err, jwt.ErrTokenNotValidYet) ||
+			errors.Is(err, jwt.ErrTokenInvalidAudience) ||
+			errors.Is(err, jwt.ErrTokenInvalidIssuer) ||
+			errors.Is(err, jwt.ErrTokenInvalidId) ||
+			errors.Is(err, jwt.ErrTokenInvalidClaims) ||
+			errors.Is(err, jwt.ErrTokenUsedBeforeIssued) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if tokenObj == nil {
+		return nil, nil
+	}
+
+	claims, ok := tokenObj.Claims.(*JwtClaim)
+	if !ok {
+		return nil, nil
 	}
 
 	if !tokenObj.Valid {
-		return 0, fmt.Errorf("invalid token: token is not valid")
+		return nil, nil
+	}
+
+	if claims.ExpiresAt.Before(time.Now()) {
+		return nil, nil
 	}
 
 	if claims.Issuer != jwtIssuer {
-		return 0, fmt.Errorf("invalid token: issuer is not valid")
+		return nil, nil
 	}
 
 	if !slices.Contains(claims.Audience, jwtAudience) {
-		return 0, fmt.Errorf("invalid token: audience is not valid")
+		return nil, nil
 	}
 
 	if claims.Subject == "" {
-		return 0, fmt.Errorf("invalid token: subject is empty")
+		return nil, nil
 	}
 
-	userID, err := strconv.ParseInt(claims.Subject, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid token subject: %w", err)
-	}
-
-	return userID, nil
+	return claims, nil
 }

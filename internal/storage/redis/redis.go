@@ -42,8 +42,8 @@ func (m *RedisManager) InitRedis(name string, dbCnf config.Redis) error {
 			DialTimeout:     dbCnf.DialTimeout,
 			PoolSize:        dbCnf.PoolSize,
 			PoolTimeout:     dbCnf.PoolTimeout,
-			ConnMaxIdleTime: dbCnf.IdleTimeout,
-			ConnMaxLifetime: dbCnf.IdleCheckFrequency,
+			ConnMaxIdleTime: dbCnf.ConnMaxIdleTime,
+			ConnMaxLifetime: dbCnf.ConnMaxLifetime,
 			DB:              dbCnf.DB,
 		},
 	)

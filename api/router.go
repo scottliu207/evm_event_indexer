@@ -26,7 +26,7 @@ func Routing(router *gin.Engine) {
 			auth := v1.Group("/auth")
 			{
 				auth.POST("/login", authController.Login)
-				auth.POST("/logout", middleware.Authorization(), middleware.CSRFProtection(), authController.Logout)
+				auth.POST("/logout", middleware.Authorization(), authController.Logout)
 				auth.POST("/refresh", middleware.CSRFProtection(), authController.RotateToken)
 			}
 

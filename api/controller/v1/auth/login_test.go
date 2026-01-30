@@ -39,26 +39,20 @@ func TestLogin_Success(t *testing.T) {
 	result, ok := res.Result.(map[string]any)
 	assert.True(t, ok, "result should be a map")
 	assert.NotEmpty(t, result["access_token"], "access_token should not be empty")
+	assert.NotZero(t, result["expires_at"], "expires_at should not be empty")
 	assert.NotEmpty(t, result["csrf_token"], "csrf_token should not be empty")
 
 	// Check refresh token cookie is set
 	cookies := w.Result().Cookies()
 	var refreshTokenCookie *http.Cookie
-	var csrfTokenCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "refresh_token" {
 			refreshTokenCookie = c
-		}
-		if c.Name == "csrf_token" {
-			csrfTokenCookie = c
 		}
 	}
 	assert.NotNil(t, refreshTokenCookie, "refresh_token cookie should be set")
 	assert.True(t, refreshTokenCookie.HttpOnly, "refresh_token cookie should be HttpOnly")
 	assert.True(t, refreshTokenCookie.Secure, "refresh_token cookie should be Secure")
-	assert.NotNil(t, csrfTokenCookie, "csrf_token cookie should be set")
-	assert.False(t, csrfTokenCookie.HttpOnly, "csrf_token cookie should not be HttpOnly")
-	assert.True(t, csrfTokenCookie.Secure, "csrf_token cookie should be Secure")
 }
 
 // TestLogin_InvalidCredentials tests login with wrong password

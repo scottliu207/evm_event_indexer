@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"evm_event_indexer/api/protocol"
 	"evm_event_indexer/internal/config"
-	"evm_event_indexer/internal/session"
 	"evm_event_indexer/internal/storage"
+	"evm_event_indexer/service"
 	"evm_event_indexer/service/model"
 	logRepo "evm_event_indexer/service/repo/eventlog"
 	"evm_event_indexer/utils"
@@ -28,6 +28,7 @@ func TestGetLog_Success(t *testing.T) {
 	db, err := storage.GetMySQL(config.EventDBM)
 	require.NoError(t, err)
 
+	userID := int64(1)
 	chainID := int64(31337)
 	address := common.HexToAddress(fmt.Sprintf("0x%040x", time.Now().UnixNano())).Hex()
 
@@ -68,8 +69,11 @@ func TestGetLog_Success(t *testing.T) {
 	start := blockTimestamp.Add(-24 * time.Hour).UTC().Format(time.RFC3339)
 	end := blockTimestamp.Add(24 * time.Hour).UTC().Format(time.RFC3339)
 
-	at, err := session.NewJWT(config.Get().Session.JWTSecret).GenerateToken(1, time.Hour)
+	sessionOut, err := service.CreateSession(ctx, userID)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = service.RevokeUserSession(ctx, userID)
+	})
 
 	req := httptest.NewRequest(http.MethodGet,
 		fmt.Sprintf("/api/v1/txn/logs?chain_id=%d&address=%s&signature=%s&from=%s&to=%s&start_time=%s&end_time=%s&page=1&size=10",
@@ -83,7 +87,7 @@ func TestGetLog_Success(t *testing.T) {
 		),
 		nil,
 	)
-	req.Header.Set("Authorization", "Bearer "+at)
+	req.Header.Set("Authorization", "Bearer "+sessionOut.AT)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -167,7 +171,7 @@ func TestGetLog_InvalidRequest(t *testing.T) {
 
 	chainID := int64(31337)
 	address := common.HexToAddress(fmt.Sprintf("0x%040x", time.Now().UnixNano())).Hex()
-
+	userID := int64(1)
 	transferSig := "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 	fromAddr := common.HexToAddress("0x0000000000000000000000000000000000000000")
 	toAddr := common.HexToAddress("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266")
@@ -206,8 +210,11 @@ func TestGetLog_InvalidRequest(t *testing.T) {
 	start := blockTimestamp.Add(-24 * time.Hour).UTC().Format(time.RFC3339)
 	end := blockTimestamp.Add(24 * time.Hour).UTC().Format(time.RFC3339)
 
-	at, err := session.NewJWT(config.Get().Session.JWTSecret).GenerateToken(1, time.Hour)
+	sessionOut, err := service.CreateSession(ctx, userID)
 	assert.NoError(t, err)
+	t.Cleanup(func() {
+		_ = service.RevokeUserSession(ctx, userID)
+	})
 
 	// test invalid request
 	testCases := []struct {
@@ -264,7 +271,7 @@ func TestGetLog_InvalidRequest(t *testing.T) {
 				), nil)
 
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", "Bearer "+at)
+			req.Header.Set("Authorization", "Bearer "+sessionOut.AT)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, tc.expectedCode, w.Code)

@@ -1,14 +1,12 @@
 package auth
 
 import (
-	"log/slog"
 	"net/http"
 
 	"evm_event_indexer/api/middleware"
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service"
-	"evm_event_indexer/service/repo/session"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,6 +19,7 @@ type (
 
 	LoginRes struct {
 		AccessToken string `json:"access_token"`
+		ExpiresAt   int64  `json:"expires_at"` // timestamp of access token expiration
 		CSRFToken   string `json:"csrf_token"`
 	}
 )
@@ -42,42 +41,22 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// delete old refresh token if exists
-	rtCookie, _ := c.Cookie(middleware.CookieNameRefreshToken)
-	if rtCookie != "" {
-		if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
-			slog.Error("failed to delete refresh token", slog.Any("error", err), slog.Any("userID", user.ID))
-		}
-	}
-
-	at, err := service.CreateUserAT(c.Request.Context(), user.ID)
+	// revoke old session and create new session
+	session, err := service.CreateSession(c.Request.Context(), user.ID)
 	if err != nil {
-		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to create access token"))
-		return
-	}
-
-	rt, err := service.CreateUserRT(c.Request.Context(), user.ID)
-	if err != nil {
-		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to create refresh token"))
+		c.Error(errors.ErrInternalServerError.Wrap(err, "failed to create session"))
 		return
 	}
 
 	*res = LoginRes{
-		AccessToken: at,
+		AccessToken: session.AT,
+		ExpiresAt:   session.ATExpiresAt.Unix(),
+		CSRFToken:   session.CSRFToken,
 	}
 
-	csrfToken, err := session.NewCSRFToken(rt)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	res.CSRFToken = csrfToken
-
-	// set refresh token & csrf token cookie
 	c.Status(http.StatusOK)
 	// cross site
 	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie(middleware.CookieNameRefreshToken, rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
-	c.SetCookie(middleware.CookieNameCSRFToken, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
+	// set refresh token
+	c.SetCookie(middleware.CookieNameRefreshToken, session.RT, int(config.Get().Session.SessionExpiration.Seconds()), "/", "", true, true)
 }

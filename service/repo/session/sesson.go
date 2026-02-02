@@ -110,10 +110,15 @@ func CreateSession(ctx context.Context, client *redis.Client, userID int64) (*mo
 		HashedCSRF: hashedCSRF,
 	}
 
+	jsonData, err := json.Marshal(newStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal session data: %w", err)
+	}
+
 	// store session id by refresh token
 	pipe.Set(ctx, newUserRTKey(hashedRT), sessionID, config.Get().Session.SessionExpiration)
 	// store session data
-	pipe.Set(ctx, newSessionKey(sessionID), newStore, config.Get().Session.SessionExpiration)
+	pipe.Set(ctx, newSessionKey(sessionID), jsonData, config.Get().Session.SessionExpiration)
 	// store session id by user id
 	pipe.Set(ctx, newUserSessionKey(userID), sessionID, config.Get().Session.SessionExpiration)
 	// store session id by csrf token

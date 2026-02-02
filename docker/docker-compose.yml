@@ -58,7 +58,7 @@ services:
       - LOG_LEVEL=debug
       # session
       - SESSION_AT_EXPIRATION=15m
-      - SESSION_SESSION_EXPIRATION=1h
+      - SESSION_SESSION_EXPIRATION=24h
       - SESSION_JWT_SECRET=secret
       - SESSION_CSRF_SECRET=secret
       # mysql

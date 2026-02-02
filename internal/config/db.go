@@ -8,5 +8,5 @@ const (
 	AccountDBS = "account_dbs"
 
 	// Redis
-	RedisUser = "user"
+	RedisCert = "cert" // certificate
 )

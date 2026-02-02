@@ -18,7 +18,7 @@ func Authorization() gin.HandlerFunc {
 			return
 		}
 
-		userID, err := service.VerifyUserAT(at)
+		userID, err := service.VerifyUserAT(c.Request.Context(), at)
 		if err != nil {
 			c.Error(err)
 			c.Abort()

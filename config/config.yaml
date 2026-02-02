@@ -24,7 +24,7 @@ argon2:
   key_len: 32  
 session:
   at_expiration: "15m"
-  rt_expiration: "1h"
+  session_expiration: "24h"
   jwt_secret: "secret" # should be replaced from environment variable
   csrf_secret: "secret" # should be replaced from environment variable
 mysql:
@@ -65,15 +65,15 @@ redis:
   wait_duration: "1s"   # ping failure wait duration before next retry
   ping_timeout: "10s" # ping timeout duration
   databases:
-    user: # user redis db
+    cert: # certificate redis db
       read_timeout: "3s"
       write_timeout: "3s"
       max_retries: 3
       dial_timeout: "10s"
       pool_size: 50
       pool_timeout: "1800s"
-      idle_timeout: "1800s"
-      idle_check_frequency: "900s"
+      conn_max_idle_time: "1800s"
+      conn_max_lifetime: "900s"
       ip: "127.0.0.1"
       port: 6379
       db: 1

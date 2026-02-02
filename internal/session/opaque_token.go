@@ -2,13 +2,18 @@ package session
 
 import (
 	"crypto/rand"
-	"encoding/base64"
+	"encoding/hex"
+	"evm_event_indexer/utils/hashing"
 )
 
-func NewOpaqueToken() (string, error) {
-	b := make([]byte, 32)
+func NewOpaqueToken() (plain string, hashed string, err error) {
+	b := make([]byte, 32) // 256-bit entropy
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+
+	plain = hex.EncodeToString(b)
+	hashed = hashing.Sha256([]byte(plain))
+
+	return plain, hashed, nil
 }

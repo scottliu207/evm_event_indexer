@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var _ Worker = (*ReorgConsumer)(nil)
@@ -18,8 +20,8 @@ var _ Worker = (*ReorgConsumer)(nil)
 type reorgMsg struct {
 	RpcHttp         string
 	ContractAddress string
-	LastSyncNumber  uint64
 	Backoff         time.Duration
+	Log             types.Log
 	Retry           int
 }
 
@@ -60,7 +62,7 @@ func (r *ReorgConsumer) Run(ctx context.Context) error {
 				continue
 			}
 
-			if err := r.reorgHandler(ctx, msg.RpcHttp, msg.LastSyncNumber, msg.ContractAddress); err != nil {
+			if err := r.reorgHandler(ctx, msg.RpcHttp, msg.Log, msg.ContractAddress); err != nil {
 				slog.Error("failed to handle reorg", slog.Any("error", err))
 				select {
 				case <-ctx.Done():
@@ -80,7 +82,11 @@ func (r *ReorgConsumer) Run(ctx context.Context) error {
 	}
 }
 
-func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, lastSyncNumber uint64, address string) error {
+// handles the reorg event
+// 1. check target log is same as on chain
+// 2. if not same, fallback to get window size logs to find the rollback checkpoint
+// 3. if still not found, fallback to start_block
+func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, log types.Log, address string) error {
 	ctx, cancel := context.WithTimeout(parentCtx, config.Get().Timeout)
 	defer cancel()
 
@@ -90,32 +96,57 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 	}
 	defer client.Close()
 
-	checkpoint := lastSyncNumber
-	found := false
-	reorgHash := ""
-	// start from page 1
-	page := int32(1)
-	// batch size
-	size := config.Get().ReorgWindow
+	checkpoint := log.BlockNumber
+	reorgHash := log.BlockHash.Hex()
+	window := config.Get().ReorgWindow * 2
 
-	limit := config.Get().ReorgWindow * 2
-	for {
+	// get the logs by block hash
+	blockLog, err := service.GetLogs(ctx, &eventlog.GetLogParam{
+		Address:   address,
+		BlockHash: log.BlockHash.Hex(),
+		Pagination: &model.Pagination{ // only need to get one log
+			Page: 1,
+			Size: 1,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get logs: %w", err)
+	}
 
-		// get batch logs to find the rollback checkpoint
+	var rollbackHeader *types.Header
+
+	for _, log := range blockLog {
+		// get the block on chain
+		header, err := client.GetHeaderByNumber(log.BlockNumber)
+		if err != nil {
+			return fmt.Errorf("failed to get header: %w", err)
+		}
+
+		// if block hash matches, means we have found the checkpoint
+		if header.Hash().String() == log.BlockHash {
+			rollbackHeader = header
+			reorgHash = header.Hash().Hex()
+			break
+		}
+	}
+
+	// if rollback header not found, fallback to get batch logs to find the rollback checkpoint
+	if rollbackHeader == nil {
 		logs, err := service.GetLogs(ctx, &eventlog.GetLogParam{
 			Address:        address,
 			OrderBy:        2,
-			Desc:           true,
+			Desc:           true, // from latest to oldest
 			BlockNumberLTE: checkpoint,
 			Pagination: &model.Pagination{
-				Page: page,
-				Size: size,
+				Page: 1,
+				Size: window,
 			},
 		})
 		if err != nil {
 			return fmt.Errorf("failed to get logs: %w", err)
 		}
 
+		// iterate the logs to find the checkpoint
 		for _, log := range logs {
 			// get the block on chain
 			header, err := client.GetHeaderByNumber(log.BlockNumber)
@@ -125,41 +156,30 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 
 			// if block hash matches, means we have found the checkpoint
 			if header.Hash().String() == log.BlockHash {
-				found = true
+				rollbackHeader = header
 				reorgHash = header.Hash().Hex()
 				break
 			}
 
-			// move checkpoint
+			// otherwise, move checkpoint
 			checkpoint = log.BlockNumber
 		}
-
-		// if checkpoint found, break
-		// if less than size, means we are current at the last page, also break
-		if int32(len(logs)) < size || found {
-			break
-		}
-
-		// if we have reached the limit, break
-		if page*size >= limit {
-			break
-		}
-
-		// otherwise, move on to next page
-		page++
 	}
 
-	// if we haven't found the checkpoint, reorg by fixed window * 2
-	if !found {
-		// block number fallback to fixed window * 2
-		checkpoint = uint64(max(int64(0), int64(lastSyncNumber)-int64(config.Get().ReorgWindow*2)))
-		slog.Debug("reorg checkpoint not found within windowlimit, fallback to fixed window * 2",
-			slog.Any("lastSyncNumber", lastSyncNumber),
+	// if rollback header found in the batch logs, use it as checkpoint
+	if rollbackHeader != nil {
+		checkpoint = rollbackHeader.Number.Uint64()
+		reorgHash = rollbackHeader.Hash().Hex()
+	} else {
+		// if rollback header not found in the batch logs, means reorg falls outside the window, fallback to start_block
+		checkpoint = config.Get().StartBlock
+		slog.Debug("reorg checkpoint not found within windowlimit, fallback to block start_block",
 			slog.Any("checkpoint", checkpoint),
-			slog.Any("limit", limit),
+			slog.Any("window", window),
+			slog.Any("start_block", config.Get().StartBlock),
 		)
 
-		// get the header from chain
+		// get the start_block header from chain
 		header, err := client.GetHeaderByNumber(checkpoint)
 		if err != nil {
 			return fmt.Errorf("failed to get header: %w", err)
@@ -168,12 +188,11 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 	}
 
 	params := &service.ReorgLogParam{
-		ChainID:        client.GetChainID().Int64(),
-		Address:        address,
-		Checkpoint:     checkpoint,
-		LastSyncNumber: lastSyncNumber,
-		ReorgHash:      reorgHash,
-		Now:            time.Now(),
+		ChainID:    client.GetChainID().Int64(),
+		Address:    address,
+		Checkpoint: checkpoint,
+		ReorgHash:  reorgHash,
+		Now:        time.Now(),
 	}
 
 	if err := service.ReorgLog(ctx, params); err != nil {

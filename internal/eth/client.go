@@ -73,3 +73,7 @@ func (i Client) Subscribe(headers chan<- *types.Header) (ethereum.Subscription, 
 func (i Client) GetHeaderByNumber(number uint64) (*types.Header, error) {
 	return i.Client.HeaderByNumber(i.ctx, big.NewInt(int64(number)))
 }
+
+func (i Client) SubscribeFilterLogs(log chan<- types.Log, filter ethereum.FilterQuery) (ethereum.Subscription, error) {
+	return i.Client.SubscribeFilterLogs(i.ctx, filter, log)
+}

@@ -72,9 +72,10 @@ func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
 func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	now := time.Now()
-
 	ctx, cancel := context.WithTimeout(ctx, config.Get().Timeout)
 	defer cancel()
+
+	slog.Info("syncing log...", slog.Any("chainID", client.GetChainID().Int64()), slog.Any("address", s.Address), slog.Any("topics", s.Topics))
 
 	bc, err := service.GetBlockSync(ctx, client.GetChainID().Int64(), s.Address)
 	if err != nil {

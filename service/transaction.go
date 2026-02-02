@@ -28,9 +28,6 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 	if params == nil {
 		return fmt.Errorf("params is nil")
 	}
-	if len(params.Logs) == 0 {
-		return fmt.Errorf("logs is nil")
-	}
 	if params.ChainID == 0 {
 		return fmt.Errorf("chain id is 0")
 	}
@@ -85,12 +82,11 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 }
 
 type ReorgLogParam struct {
-	ChainID        int64
-	Address        string
-	Checkpoint     uint64
-	LastSyncNumber uint64
-	ReorgHash      string
-	Now            time.Time
+	ChainID    int64
+	Address    string
+	Checkpoint uint64
+	ReorgHash  string
+	Now        time.Time
 }
 
 // ReorgLog deletes event logs in a given range and updates block sync info into database.
@@ -105,9 +101,7 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 	if params.Address == "" {
 		return fmt.Errorf("address is empty")
 	}
-	if params.Checkpoint == 0 {
-		return fmt.Errorf("checkpoint is 0")
-	}
+
 	if params.Now.IsZero() {
 		return fmt.Errorf("now is zero")
 	}

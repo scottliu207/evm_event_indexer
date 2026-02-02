@@ -8,8 +8,9 @@ import (
 )
 
 func Test_OpaqueToken(t *testing.T) {
-	token, err := session.NewOpaqueToken()
+	plain, hashed, err := session.NewOpaqueToken()
 	assert.NoError(t, err)
-	assert.NotEmpty(t, token)
-	t.Logf("token: %s", token)
+	assert.NotEmpty(t, plain)
+	assert.NotEmpty(t, hashed)
+	t.Logf("plain_token: %s, hashed_token: %s", plain, hashed)
 }

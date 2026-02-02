@@ -9,32 +9,44 @@ import (
 
 func Test_JWT(t *testing.T) {
 	session := NewJWT("secret")
-	token, err := session.GenerateToken(1, 2*time.Second)
+	sessionID := "session_1"
+	token, _, err := session.GenerateToken(1, sessionID, 2*time.Second)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 	t.Logf("token: %s", token)
 
 	// test valid token
-	userID, err := session.VerifyToken(token)
+	claims, err := session.VerifyToken(token)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), userID)
+	if assert.NotNil(t, claims) {
+		assert.Equal(t, "1", claims.Subject)
+		assert.Equal(t, sessionID, claims.Sid)
+	}
 
 	// test invalid token
-	userID, err = session.VerifyToken("invalid_token")
-	assert.Error(t, err)
+	claims, err = session.VerifyToken("invalid_token")
+	assert.NoError(t, err)
+	assert.Nil(t, claims)
 
 	// test valid token with bearer prefix
-	userID, err = session.VerifyToken("bearer " + token)
+	claims, err = session.VerifyToken("bearer " + token)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), userID)
+	if assert.NotNil(t, claims) {
+		assert.Equal(t, "1", claims.Subject)
+		assert.Equal(t, sessionID, claims.Sid)
+	}
 
 	// test valid token with Bearer prefix (canonical form)
-	userID, err = session.VerifyToken("Bearer " + token)
+	claims, err = session.VerifyToken("Bearer " + token)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), userID)
+	if assert.NotNil(t, claims) {
+		assert.Equal(t, "1", claims.Subject)
+		assert.Equal(t, sessionID, claims.Sid)
+	}
 
+	// wait for token to expire
 	time.Sleep(3 * time.Second)
-	_, err = session.VerifyToken(token)
-	assert.Error(t, err)
-
+	claims, err = session.VerifyToken(token)
+	assert.NoError(t, err)
+	assert.Nil(t, claims)
 }

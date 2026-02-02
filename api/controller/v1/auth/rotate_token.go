@@ -7,7 +7,6 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/service"
-	"evm_event_indexer/service/repo/session"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +17,7 @@ type (
 
 	RotateTokenRes struct {
 		AccessToken string `json:"access_token"`
+		ExpiresAt   int64  `json:"expires_at"` // timestamp of access token expiration
 		CSRFToken   string `json:"csrf_token"`
 	}
 )
@@ -39,43 +39,28 @@ func RotateToken(c *gin.Context) {
 		return
 	}
 
+	// get user id by refresh token
 	userID, err := service.GetUserIDByRT(c.Request.Context(), rtCookie)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	if err := service.DeleteUserRT(c.Request.Context(), rtCookie); err != nil {
-		c.Error(err)
-		return
-	}
-
-	at, err := service.CreateUserAT(c.Request.Context(), userID)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	rt, err := service.CreateUserRT(c.Request.Context(), userID)
+	// revoke old session and create new session
+	session, err := service.CreateSession(c.Request.Context(), userID)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	*res = RotateTokenRes{
-		AccessToken: at,
+		AccessToken: session.AT,
+		ExpiresAt:   session.ATExpiresAt.Unix(),
+		CSRFToken:   session.CSRFToken,
 	}
 
-	csrfToken, err := session.NewCSRFToken(rt)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-	res.CSRFToken = csrfToken
-
-	// set refresh token & csrf token cookie
 	c.Status(http.StatusOK)
 	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie(middleware.CookieNameRefreshToken, rt, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, true)
-	c.SetCookie(middleware.CookieNameCSRFToken, csrfToken, int(config.Get().Session.RTExpiration.Seconds()), "/", "", true, false)
+	// set new refresh token
+	c.SetCookie(middleware.CookieNameRefreshToken, session.RT, int(config.Get().Session.SessionExpiration.Seconds()), "/", "", true, true)
 }

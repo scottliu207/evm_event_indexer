@@ -40,10 +40,10 @@ type Config struct {
 		KeyLen  uint32 `yaml:"key_len"`
 	}
 	Session struct {
-		JWTSecret    string        `yaml:"jwt_secret"`
-		CSRFSecret   string        `yaml:"csrf_secret"`
-		ATExpiration time.Duration `yaml:"at_expiration"`
-		RTExpiration time.Duration `yaml:"rt_expiration"`
+		JWTSecret         string        `yaml:"jwt_secret"`
+		CSRFSecret        string        `yaml:"csrf_secret"`
+		ATExpiration      time.Duration `yaml:"at_expiration"`
+		SessionExpiration time.Duration `yaml:"session_expiration"`
 	} `yaml:"session"`
 
 	MySQL struct {
@@ -73,17 +73,17 @@ type MySQL struct {
 }
 
 type Redis struct {
-	ReadTimeout        time.Duration `yaml:"read_timeout"`
-	WriteTimeout       time.Duration `yaml:"write_timeout"`
-	MaxRetries         int           `yaml:"max_retries"`
-	DialTimeout        time.Duration `yaml:"dial_timeout"`
-	PoolSize           int           `yaml:"pool_size"`
-	PoolTimeout        time.Duration `yaml:"pool_timeout"`
-	IdleTimeout        time.Duration `yaml:"idle_timeout"`
-	IdleCheckFrequency time.Duration `yaml:"idle_check_frequency"`
-	IP                 string        `yaml:"ip"`
-	Port               int           `yaml:"port"`
-	DB                 int           `yaml:"db"`
+	ReadTimeout     time.Duration `yaml:"read_timeout"`
+	WriteTimeout    time.Duration `yaml:"write_timeout"`
+	MaxRetries      int           `yaml:"max_retries"`
+	DialTimeout     time.Duration `yaml:"dial_timeout"`
+	PoolSize        int           `yaml:"pool_size"`
+	PoolTimeout     time.Duration `yaml:"pool_timeout"`
+	ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time"`
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
+	IP              string        `yaml:"ip"`
+	Port            int           `yaml:"port"`
+	DB              int           `yaml:"db"`
 }
 
 var config = new(Config)
@@ -218,11 +218,11 @@ func (c Config) Validate() error {
 		if db.PoolTimeout == 0 {
 			return fmt.Errorf("redis.pool_timeout is required")
 		}
-		if db.IdleTimeout == 0 {
-			return fmt.Errorf("redis.idle_timeout is required")
+		if db.ConnMaxIdleTime == 0 {
+			return fmt.Errorf("redis.conn_max_idle_time is required")
 		}
-		if db.IdleCheckFrequency == 0 {
-			return fmt.Errorf("redis.idle_check_frequency is required")
+		if db.ConnMaxLifetime == 0 {
+			return fmt.Errorf("redis.conn_max_lifetime is required")
 		}
 	}
 

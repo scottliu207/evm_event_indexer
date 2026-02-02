@@ -73,7 +73,6 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 	sql.WriteString("  `created_at`, ")
 	sql.WriteString("  `updated_at` ")
 	sql.WriteString(" FROM `account_db`.`user` ")
-	sql.WriteString(" WHERE ")
 
 	if len(filter.Accounts) > 0 {
 		var tmp strings.Builder
@@ -94,6 +93,7 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 	}
 
 	if len(wheres) > 0 {
+		sql.WriteString(" WHERE ")
 		sql.WriteString(strings.Join(wheres, " AND "))
 	}
 

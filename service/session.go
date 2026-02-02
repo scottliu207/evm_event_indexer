@@ -12,14 +12,14 @@ import (
 )
 
 // VerifyCSRFToken verifies a csrf token
-func VerifyCSRFToken(ctx context.Context, csrf string) error {
+func VerifyCSRFToken(ctx context.Context, csrf string) (*model.SessionStore, error) {
 	if csrf == "" {
-		return errors.ErrCSRFTokenInvalid.New("csrf token is required")
+		return nil, errors.ErrCSRFTokenInvalid.New("csrf token is required")
 	}
 
 	client, err := storage.GetRedis(config.RedisCert)
 	if err != nil {
-		return errors.ErrInternalServerError.Wrap(err, "failed to get redis")
+		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get redis")
 	}
 
 	hashed := hashing.Sha256([]byte(csrf))
@@ -27,20 +27,24 @@ func VerifyCSRFToken(ctx context.Context, csrf string) error {
 	// get session_id by csrf token
 	sessionID, err := session.GetSessionIDByCSRF(ctx, client, hashed)
 	if err != nil {
-		return errors.ErrInternalServerError.Wrap(err, "failed to get session id by refresh token")
+		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get session id by refresh token")
+	}
+
+	if sessionID == "" {
+		return nil, errors.ErrInvalidCredentials.New("invalid csrf token")
 	}
 
 	// get session data by session_id
 	data, err := session.GetSessionData(ctx, client, sessionID)
 	if err != nil {
-		return errors.ErrInternalServerError.Wrap(err, "failed to get session id by refresh token")
+		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get session id by refresh token")
 	}
 
 	if data == nil || data.HashedCSRF != hashed {
-		return errors.ErrCSRFTokenInvalid.New("invalid csrf token")
+		return nil, errors.ErrCSRFTokenInvalid.New("invalid csrf token")
 	}
 
-	return nil
+	return data, nil
 }
 
 // VerifyUserAT verifies a user access token

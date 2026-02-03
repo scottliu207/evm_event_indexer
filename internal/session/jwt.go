@@ -42,7 +42,7 @@ func (j *JWT) GenerateToken(userID int64, sessionID string, expiration time.Dura
 	}
 
 	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, JwtClaim{
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &JwtClaim{
 		Sid: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatInt(userID, 10),

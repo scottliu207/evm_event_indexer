@@ -12,7 +12,7 @@ A Go-based EVM event (log) indexer: scan/subscribe contract events based on conf
 
 ## Requirements
 
-- Go `1.25.4`
+- Go `1.25.5`
 - Docker + Docker Compose (recommended for local MySQL / Redis / Anvil)
 
 ## Project Layout
@@ -38,12 +38,23 @@ A Go-based EVM event (log) indexer: scan/subscribe contract events based on conf
 ./run.sh up
 ```
 
-Note: `run.sh up` will also reset data.
+Options:
+
+```bash
+--purge   # reset data (remove volumes before up)
+--infra   # start only infra (mysql, redis, anvil)
+```
 
 2. Stop services
 
 ```bash
 ./run.sh down
+```
+
+Options:
+
+```bash
+--purge   # remove volumes
 ```
 
 ## Run Locally (Non-Docker)
@@ -81,36 +92,46 @@ Scanner JSON key fields:
   - `address`: contract address
   - `topics[]`: event signatures (strings); the indexer hashes them with `keccak256` as topic0
 
+## Scanner
+
+- **Modes**: scan (historical backfill) and subscribe (live logs).
+- **Flow**: read `scanner*.json` → fetch logs by `addresses/topics` → decode → persist to MySQL.
+- **Batching**: `batch_size` controls log fetch size; larger batches improve throughput but increase RPC/DB load.
+
+## Reorg
+
+- **Window**: configurable `reorg_window` (e.g. 12 blocks).
+- **Behavior**: each sync re-reads the last `reorg_window` blocks and overwrites affected logs to keep canonical state.
+- **Limit**: reorgs deeper than the window require a manual rescan.
+
 ## API
 
 - `GET /api/status`: health check
-- `POST /api/v1/auth/login`: login, returns `access_token` and sets cookies (`refresh_token` / `csrf_token`)
-- `POST /api/v1/auth/refresh`: rotate access/refresh token (cookie-based; requires CSRF)
-- `POST /api/v1/auth/logout`: logout, deletes refresh token (cookie-based; requires CSRF)
+- `POST /api/v1/auth/login`: login, returns `access_token` and `csrf_token` and sets cookies (`refresh_token`)
+- `POST /api/v1/auth/refresh`: rotate access/refresh/csrf token (cookie-based; requires CSRF)
+- `POST /api/v1/auth/logout`: logout, deletes refresh token (requires `Authorization: Bearer <access_token>`)
 - `GET /api/v1/txn/logs`: query event logs (requires `Authorization: Bearer <access_token>`)
 
-## Auth & CSRF
+## Auth
 
-This project stores the refresh token in a cookie (`refresh_token`), so endpoints that rely on this cookie are protected with CSRF checks (double-submit cookie + header).
+- Access token is sent via `Authorization: Bearer <access_token>`.
+- Refresh token is stored in an HttpOnly cookie (`refresh_token`).
+- CSRF token is returned in JSON and must be echoed in the `X-CSRF-Token` header for refresh/logout.
+
 
 ### Cookies
 
 - `refresh_token`: `HttpOnly` + `Secure` (not readable by browser JS)
-- `csrf_token`: `Secure`, **not** `HttpOnly` (readable by browser JS)
 
 ### Flow
 
 1. `POST /api/v1/auth/login`
    - Response JSON: `access_token`, `csrf_token`
-   - Response cookies: `refresh_token`, `csrf_token`
+   - Response cookies: `refresh_token`
 2. `POST /api/v1/auth/refresh` / `POST /api/v1/auth/logout`
    - Browser must send cookies: `fetch(..., { credentials: "include" })` (or axios `withCredentials: true`)
    - Must include header: `X-CSRF-Token: <csrf_token>`
-     - `<csrf_token>` can be read from the `csrf_token` cookie or from the login/refresh JSON response
-
-Notes:
-
-- The CSRF middleware only requires `X-CSRF-Token` when the request includes the `refresh_token` cookie; missing refresh token behavior is handled by each endpoint (e.g. refresh returns invalid credentials; logout remains idempotent).
+     - `<csrf_token>` comes from the login/refresh JSON response
 
 ## Database Schema
 

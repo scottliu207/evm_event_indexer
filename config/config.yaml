@@ -7,7 +7,7 @@ decoders:
     signature: "Transfer(address,address,uint256)"
   - name: "Approval"
     signature: "Approval(address,address,uint256)"
-log_scanner_interval: "5s"
+log_scanner_interval: "15s"
 reorg_window: 10
 log_level: "debug"
 timeout: "30s"

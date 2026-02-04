@@ -5,33 +5,36 @@ import (
 	"database/sql"
 	"evm_event_indexer/service/model"
 	"fmt"
-	"strings"
+
+	sq "github.com/Masterminds/squirrel"
 )
 
 // Upsert block sync status into db
 func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) error {
-	const sql = `
-	INSERT INTO event_db.block_sync(
-		chain_id, 
-		address, 
-		last_sync_number, 
-		last_sync_hash, 
-		updated_at 
-	) VALUES (?,?,?,?,?) 
+
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Insert(model.TableNameBlockSync).
+		Columns(
+			"chain_id",
+			"address",
+			"last_sync_number",
+			"last_sync_hash",
+			"updated_at",
+		).
+		Values(
+			blockSync.ChainID,
+			blockSync.Address,
+			blockSync.LastSyncNumber,
+			blockSync.LastSyncHash,
+			blockSync.UpdatedAt,
+		).
+		Suffix(`
 	ON DUPLICATE KEY UPDATE 
 		last_sync_number = VALUES(last_sync_number), 
 		last_sync_hash = VALUES(last_sync_hash), 
 		updated_at = VALUES(updated_at) 
-	`
-	var params []any
-
-	params = append(params, blockSync.ChainID)
-	params = append(params, blockSync.Address)
-	params = append(params, blockSync.LastSyncNumber)
-	params = append(params, blockSync.LastSyncHash)
-	params = append(params, blockSync.UpdatedAt)
-
-	_, err := tx.ExecContext(ctx, sql, params...)
+	`)
+	_, err := qb.RunWith(tx).ExecContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -40,27 +43,30 @@ func TxUpsertBlock(ctx context.Context, tx *sql.Tx, blockSync *model.BlockSync) 
 }
 
 func GetBlockSync(ctx context.Context, db *sql.DB, chainID int64, address string) (res *model.BlockSync, err error) {
-	var sql strings.Builder
-	sql.WriteString(" SELECT ")
-	sql.WriteString("  `chain_id`, ")
-	sql.WriteString("  `address`, ")
-	sql.WriteString("  `last_sync_number`, ")
-	sql.WriteString("  `last_sync_hash`, ")
-	sql.WriteString("  `updated_at` ")
-	sql.WriteString(" FROM `event_db`.`block_sync` ")
-	sql.WriteString(" WHERE ")
-	sql.WriteString("  `chain_id` = ? ")
-	sql.WriteString("  AND `address` = ? ")
 
-	row, err := db.QueryContext(ctx, sql.String(), chainID, address)
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Select(
+			"chain_id",
+			"address",
+			"last_sync_number",
+			"last_sync_hash",
+			"updated_at",
+		).
+		From(model.TableNameBlockSync).
+		Where(
+			sq.Eq{"chain_id": chainID},
+			sq.Eq{"address": address},
+		)
+
+	rows, err := qb.RunWith(db).QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer row.Close()
+	defer rows.Close()
 
-	for row.Next() {
+	for rows.Next() {
 		res = new(model.BlockSync)
-		if err := row.Scan(
+		if err := rows.Scan(
 			&res.ChainID,
 			&res.Address,
 			&res.LastSyncNumber,
@@ -75,41 +81,37 @@ func GetBlockSync(ctx context.Context, db *sql.DB, chainID int64, address string
 }
 
 func GetBlockSyncMap(ctx context.Context, db *sql.DB, chainID int64, addresses []string) (res map[string]*model.BlockSync, err error) {
+	if chainID == 0 {
+		return nil, fmt.Errorf("chain id is required")
+	}
+
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("addresses can not be empty")
 	}
 
-	var sql strings.Builder
-	var params []any
-	sql.WriteString(" SELECT ")
-	sql.WriteString("  `chain_id`, ")
-	sql.WriteString("  `address`, ")
-	sql.WriteString("  `last_sync_number`, ")
-	sql.WriteString("  `last_sync_hash`, ")
-	sql.WriteString("  `updated_at` ")
-	sql.WriteString(" FROM `event_db`.`block_sync` ")
-	sql.WriteString(" WHERE ")
-	sql.WriteString("  `chain_id` = ? ")
-	params = append(params, chainID)
-	sql.WriteString("  AND `address` IN ( ?")
-	for i, v := range addresses {
-		if i > 0 {
-			sql.WriteString(", ?")
-		}
-		params = append(params, v)
-	}
-	sql.WriteString(")")
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Select(
+			"chain_id",
+			"address",
+			"last_sync_number",
+			"last_sync_hash",
+			"updated_at",
+		).
+		From(model.TableNameBlockSync).
+		Where(
+			sq.Eq{"chain_id": chainID},
+			sq.Eq{"address": addresses},
+		)
 
-	row, err := db.QueryContext(ctx, sql.String(), params...)
+	rows, err := qb.RunWith(db).QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer row.Close()
-
+	defer rows.Close()
 	res = make(map[string]*model.BlockSync)
-	for row.Next() {
+	for rows.Next() {
 		bs := new(model.BlockSync)
-		if err := row.Scan(
+		if err := rows.Scan(
 			&bs.ChainID,
 			&bs.Address,
 			&bs.LastSyncNumber,
@@ -122,14 +124,4 @@ func GetBlockSyncMap(ctx context.Context, db *sql.DB, chainID int64, addresses [
 	}
 
 	return res, nil
-}
-
-// selects the block sync record for update
-func TxSelectForUpdateBlockSync(ctx context.Context, tx *sql.Tx, chainID int64, address string) error {
-	const sql = `SELECT * FROM event_db.block_sync WHERE chain_id = ? AND address = ? FOR UPDATE`
-	_, err := tx.ExecContext(ctx, sql, chainID, address)
-	if err != nil {
-		return err
-	}
-	return nil
 }

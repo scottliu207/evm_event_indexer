@@ -5,30 +5,30 @@ import (
 	"database/sql"
 	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/service/model"
-	"strings"
+
+	sq "github.com/Masterminds/squirrel"
 )
 
 // Insert user info into db
 func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, error) {
-	const sql = `
-	INSERT INTO account_db.user (
-		account,
-		status,
-		password,
-		auth_meta,
-		created_at
-	) VALUES (?, ?, ?, ?, ?)
-`
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Insert(model.TableNameUser).
+		Columns(
+			"account",
+			"status",
+			"password",
+			"auth_meta",
+			"created_at",
+		).
+		Values(
+			user.Account,
+			user.Status,
+			user.Password,
+			user.AuthMeta,
+			user.CreatedAt,
+		)
 
-	var params []any
-
-	params = append(params, user.Account)
-	params = append(params, user.Status)
-	params = append(params, user.Password)
-	params = append(params, user.AuthMeta)
-	params = append(params, user.CreatedAt)
-
-	result, err := tx.ExecContext(ctx, sql, params...)
+	result, err := qb.RunWith(tx).ExecContext(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -43,11 +43,12 @@ func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, err
 
 // Delete user by ID
 func TxDeleteUser(ctx context.Context, tx *sql.Tx, userID int64) error {
-	sql := `
-	DELETE FROM account_db.user 
-	WHERE id = ?
-`
-	_, err := tx.ExecContext(ctx, sql, userID)
+
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Delete(model.TableNameUser).
+		Where(sq.Eq{"id": userID})
+
+	_, err := qb.RunWith(tx).ExecContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -60,54 +61,47 @@ type GetUserFilter struct {
 	Status   enum.UserStatus
 }
 
-func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*model.User, total int64, err error) {
-	var sql strings.Builder
-	var wheres []string
-	var params []any
-	sql.WriteString(" SELECT ")
-	sql.WriteString("  `id`, ")
-	sql.WriteString("  `account`, ")
-	sql.WriteString("  `status`, ")
-	sql.WriteString("  `password`, ")
-	sql.WriteString("  `auth_meta`, ")
-	sql.WriteString("  `created_at`, ")
-	sql.WriteString("  `updated_at` ")
-	sql.WriteString(" FROM `account_db`.`user` ")
-
-	if len(filter.Accounts) > 0 {
-		var tmp strings.Builder
-		tmp.WriteString("  `account` IN (? ")
-		for i := range filter.Accounts {
-			if i > 0 {
-				tmp.WriteString(",? ")
-			}
-			params = append(params, filter.Accounts[i])
-		}
-		tmp.WriteString(" ) ")
-		wheres = append(wheres, tmp.String())
+func (p GetUserFilter) ToWhere() sq.And {
+	var conds sq.And
+	if len(p.Accounts) > 0 {
+		conds = append(conds, sq.Eq{"account": p.Accounts})
 	}
-
-	if filter.Status != 0 {
-		wheres = append(wheres, " `status` = ? ")
-		params = append(params, filter.Status)
+	if p.Status != 0 {
+		conds = append(conds, sq.Eq{"status": p.Status})
 	}
+	return conds
+}
 
-	if len(wheres) > 0 {
-		sql.WriteString(" WHERE ")
-		sql.WriteString(strings.Join(wheres, " AND "))
-	}
+func (p GetUserFilter) ToOrderBy() string {
+	return "id"
+}
 
-	sql.WriteString(" ORDER BY `id` ")
-	row, err := db.QueryContext(ctx, sql.String(), params...)
+func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) ([]*model.User, error) {
+
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Select(
+			"id",
+			"account",
+			"status",
+			"password",
+			"auth_meta",
+			"created_at",
+			"updated_at",
+		).
+		From(model.TableNameUser).
+		Where(filter.ToWhere()).
+		OrderBy(filter.ToOrderBy())
+
+	rows, err := qb.RunWith(db).QueryContext(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	defer row.Close()
+	defer rows.Close()
 
-	res = make([]*model.User, 0)
-	for row.Next() {
+	res := make([]*model.User, 0)
+	for rows.Next() {
 		user := new(model.User)
-		if err := row.Scan(
+		if err := rows.Scan(
 			&user.ID,
 			&user.Account,
 			&user.Status,
@@ -116,10 +110,10 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) (res []*mo
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		res = append(res, user)
 	}
 
-	return res, total, nil
+	return res, nil
 }

@@ -103,7 +103,7 @@ func cleanupTestUser() {
 		return
 	}
 
-	users, _, err := user.GetUsers(ctx, db, &user.GetUserFilter{
+	users, err := user.GetUsers(ctx, db, &user.GetUserFilter{
 		Accounts: []string{testAccount},
 	})
 	if err != nil || len(users) == 0 {

@@ -29,8 +29,8 @@ type (
 		EndTime   string `form:"end_time" binding:"required"`
 		OrderBy   int8   `form:"order_by"`
 		Desc      bool   `form:"desc"`
-		Page      int32  `form:"page" binding:"required,min=1"`
-		Size      int32  `form:"size" binding:"required,min=1,max=100"`
+		Page      uint64 `form:"page" binding:"required,min=1"`
+		Size      uint64 `form:"size" binding:"required,min=1,max=100"`
 	}
 
 	GetLogRes struct {

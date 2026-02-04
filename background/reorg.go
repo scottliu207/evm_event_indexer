@@ -98,7 +98,7 @@ func (r *ReorgConsumer) reorgHandler(parentCtx context.Context, rpcHttp string, 
 
 	checkpoint := log.BlockNumber
 	reorgHash := log.BlockHash.Hex()
-	window := config.Get().ReorgWindow * 2
+	window := uint64(config.Get().ReorgWindow * 2)
 
 	// get the logs by block hash
 	blockLog, err := service.GetLogs(ctx, &eventlog.GetLogParam{

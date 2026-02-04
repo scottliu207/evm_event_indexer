@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const TableNameUser = "account_db.user"
+
 type (
 	User struct {
 		ID        int64           // user id

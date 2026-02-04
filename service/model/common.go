@@ -2,15 +2,19 @@ package model
 
 type (
 	Pagination struct {
-		Page int32
-		Size int32
+		Page uint64
+		Size uint64
 	}
 )
 
-func (p Pagination) Offset() int32 {
+func (p Pagination) Offset() uint64 {
+	if p.Page == 0 {
+		return 0
+	}
+
 	return (p.Page - 1) * p.Size
 }
 
-func (p Pagination) Limit() int32 {
+func (p Pagination) Limit() uint64 {
 	return p.Size
 }

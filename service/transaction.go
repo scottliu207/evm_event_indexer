@@ -50,9 +50,15 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 	}
 
 	if err := utils.NewTx(db).Exec(ctx,
-		// lock the block sync record for update
+		// upsert the block sync record
 		func(ctx context.Context, tx *sql.Tx) error {
-			return blocksync.TxSelectForUpdateBlockSync(ctx, tx, params.ChainID, params.Address)
+			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
+				ChainID:        params.ChainID,
+				Address:        params.Address,
+				LastSyncNumber: params.LastSyncNumber,
+				LastSyncHash:   params.LastSyncHash,
+				UpdatedAt:      params.Now,
+			})
 		},
 		// delete the logs after the last sync number
 		func(ctx context.Context, tx *sql.Tx) error {
@@ -64,16 +70,6 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 				return nil
 			}
 			return eventlog.TxInsertLog(ctx, tx, params.Logs...)
-		},
-		// upsert the block sync record
-		func(ctx context.Context, tx *sql.Tx) error {
-			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
-				ChainID:        params.ChainID,
-				Address:        params.Address,
-				LastSyncNumber: params.LastSyncNumber,
-				LastSyncHash:   params.LastSyncHash,
-				UpdatedAt:      params.Now,
-			})
 		},
 	); err != nil {
 		return fmt.Errorf("upsert log error for address %s: %w", params.Address, err)
@@ -112,13 +108,7 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 	}
 
 	err = utils.NewTx(db).Exec(ctx,
-		// lock the block sync record for update
-		func(ctx context.Context, tx *sql.Tx) error {
-			return blocksync.TxSelectForUpdateBlockSync(ctx, tx, params.ChainID, params.Address)
-		},
-		func(ctx context.Context, tx *sql.Tx) error {
-			return eventlog.TxDeleteLog(ctx, tx, params.Address, params.Checkpoint)
-		},
+		// upsert the block sync record
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{
 				ChainID:        params.ChainID,
@@ -127,6 +117,10 @@ func ReorgLog(ctx context.Context, params *ReorgLogParam) error {
 				LastSyncHash:   params.ReorgHash,
 				UpdatedAt:      params.Now,
 			})
+		},
+		// delete the logs after the checkpoint
+		func(ctx context.Context, tx *sql.Tx) error {
+			return eventlog.TxDeleteLog(ctx, tx, params.Address, params.Checkpoint)
 		},
 	)
 	if err != nil {

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const TableNameEventLog = "event_db.event_log"
+
 type (
 	Log struct {
 		ID             int64

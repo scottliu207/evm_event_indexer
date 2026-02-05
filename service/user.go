@@ -29,7 +29,7 @@ func VerifyUserPassword(ctx context.Context, account string, password string) (*
 		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get mysql")
 	}
 
-	users, _, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
+	users, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
 		Accounts: []string{account},
 		Status:   enum.UserStatusEnabled,
 	})
@@ -126,7 +126,7 @@ func GetUserByAccount(ctx context.Context, account string) (*model.User, error) 
 		return nil, errors.ErrInternalServerError.Wrap(err, "failed to get mysql")
 	}
 
-	users, _, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
+	users, err := userRepo.GetUsers(ctx, db, &userRepo.GetUserFilter{
 		Accounts: []string{account},
 		Status:   enum.UserStatusEnabled,
 	})

@@ -75,7 +75,7 @@ func Test_User(t *testing.T) {
 		})
 	assert.NoError(t, err)
 
-	users, _, err := user.GetUsers(ctx, db, &user.GetUserFilter{
+	users, err := user.GetUsers(ctx, db, &user.GetUserFilter{
 		Accounts: []string{testUser},
 		Status:   enum.UserStatusEnabled,
 	})

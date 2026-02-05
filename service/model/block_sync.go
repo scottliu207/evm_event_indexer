@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+const TableNameBlockSync = "event_db.block_sync"
+
 type (
 	BlockSync struct {
 		ChainID        int64     // chain id

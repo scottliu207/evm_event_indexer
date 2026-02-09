@@ -1,0 +1,13 @@
+[
+    {
+        "rpc_http": "https://sepolia.infura.io/v3/de3a5a6f05ac4c07a5d9dd5f90f9185d",
+        "rpc_ws": "wss://sepolia.infura.io/ws/v3/de3a5a6f05ac4c07a5d9dd5f90f9185d",
+        "batch_size": 20,
+        "addresses": [
+            {
+                "address": "0x405394C5a635A61cBECcf7105EeE23a8eBd40C1C",
+                "topics": ["Transfer(address,address,uint256)", "Approval(address,address,uint256)"]
+            }
+        ]
+    }
+]

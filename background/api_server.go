@@ -31,6 +31,8 @@ func (s *APIServer) Run(ctx context.Context) error {
 
 	<-ctx.Done()
 
+	// at this point, parent context has been cancelled
+	// create a new context with timeout for shutting down the server gracefully
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

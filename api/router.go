@@ -22,7 +22,6 @@ func Routing(router *gin.Engine) {
 
 		v1 := api.Group("/v1")
 		{
-
 			auth := v1.Group("/auth")
 			{
 				auth.POST("/login", authController.Login)

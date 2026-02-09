@@ -106,7 +106,6 @@ func (s *Subscription) subscription(ctx context.Context, sub ethereum.Subscripti
 
 			// skip new log, it will be handled by scanner
 			if !log.Removed {
-				slog.Info("new log, skipping reorg process", slog.Any("address", log.Address.Hex()), slog.Any("block number", log.BlockNumber))
 				continue
 			}
 

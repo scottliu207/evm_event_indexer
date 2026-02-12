@@ -23,6 +23,14 @@ type (
 )
 
 // RotateToken rotates the user access token and refresh token
+//
+//	@Summary		Refresh access token
+//	@Description	Rotate access and refresh tokens using the refresh_token cookie. Returns new tokens and sets a new refresh_token cookie.
+//	@Tags			Auth
+//	@Produce		json
+//	@Success		200	{object}	protocol.Response{result=RotateTokenRes}
+//	@Failure		401	{object}	protocol.Response
+//	@Router			/v1/auth/refresh [post]
 func RotateToken(c *gin.Context) {
 	res := new(RotateTokenRes)
 	c.Set(middleware.CtxResponse, res)

@@ -5,6 +5,8 @@ import (
 	internalCnf "evm_event_indexer/internal/config"
 	"net/http"
 
+	_ "evm_event_indexer/docs" // swagger generated docs
+
 	"github.com/gin-gonic/gin"
 )
 

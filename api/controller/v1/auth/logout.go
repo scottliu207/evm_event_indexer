@@ -17,6 +17,16 @@ type (
 )
 
 // Logout logs out the user by deleting the refresh token
+//
+//	@Summary		User logout
+//	@Description	Revoke user session and delete refresh token cookie.
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	protocol.Response{result=LogoutRes}
+//	@Failure		401	{object}	protocol.Response
+//	@Security		BearerAuth
+//	@Router			/v1/auth/logout [post]
 func Logout(c *gin.Context) {
 	res := new(LogoutRes)
 	c.Set(middleware.CtxResponse, res)

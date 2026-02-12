@@ -61,3 +61,8 @@ transfer:
         "transfer(address,uint256)" \
 		0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
 		1000000000000000000
+
+# generate swagger docs
+.PHONY: docs
+docs:
+	swag init -g cmd/indexer/main.go -o docs --parseInternal -d .

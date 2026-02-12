@@ -5,3 +5,4 @@
 /contracts/build-info
 /contracts/cache
 *.env
+/docs

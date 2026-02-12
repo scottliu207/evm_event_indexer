@@ -55,6 +55,9 @@ func main() {
 	// register api server
 	bgManager.AddWorker(background.NewAPIServer())
 
+	// register metrics server
+	bgManager.AddWorker(background.NewMetricsServer())
+
 	// register reorg consumer
 	bgManager.AddWorker(background.NewReorgConsumer())
 

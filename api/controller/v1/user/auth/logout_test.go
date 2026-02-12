@@ -3,7 +3,7 @@ package auth_test
 import (
 	"bytes"
 	"encoding/json"
-	"evm_event_indexer/api/controller/v1/auth"
+	"evm_event_indexer/api/controller/v1/user/auth"
 	"evm_event_indexer/api/protocol"
 	"net/http"
 	"net/http/httptest"

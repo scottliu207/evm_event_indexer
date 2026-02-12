@@ -33,6 +33,9 @@ type Config struct {
 		Port    string        `yaml:"port"`
 		Timeout time.Duration `yaml:"timeout"`
 	}
+	Metrics struct {
+		Port string `yaml:"port"`
+	} `yaml:"metrics"`
 	Argon2 struct {
 		Time    uint32 `yaml:"time"`
 		Memory  uint32 `yaml:"memory"`

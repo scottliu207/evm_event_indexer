@@ -17,6 +17,9 @@ max_backoff: "30s"
 api:
   port: "8080"
   timeout: "30s"
+  enable_user_register: false
+metrics:
+  port: "9090"
 argon2:
   time: 1
   memory: 65536

@@ -34,6 +34,22 @@ func newUserSessionKey(userID int64) string {
 	return fmt.Sprintf("user_session:%d", userID)
 }
 
+func newAdminRTKey(rt string) string {
+	return fmt.Sprintf("admin_rt:%s", rt)
+}
+
+func newAdminCSRFKey(csrf string) string {
+	return fmt.Sprintf("admin_csrf:%s", csrf)
+}
+
+func newAdminSessionKey(sessionID string) string {
+	return fmt.Sprintf("admin_session:%s", sessionID)
+}
+
+func newAdminUserSessionKey(adminID int64) string {
+	return fmt.Sprintf("admin_user_session:%d", adminID)
+}
+
 // CreateSession creates a session for a user, if the user has an old session, it will also be revoked.
 func CreateSession(ctx context.Context, client *redis.Client, userID int64) (*model.SessionOut, error) {
 
@@ -232,6 +248,174 @@ func GetSessionData(ctx context.Context, client *redis.Client, sessionID string)
 		return nil, fmt.Errorf("failed to get session data: %w", err)
 	}
 
+	if dataStr == "" {
+		return nil, nil
+	}
+
+	data := new(model.SessionStore)
+	if err := json.Unmarshal([]byte(dataStr), data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal session data")
+	}
+	return data, nil
+}
+
+func CreateAdminSession(ctx context.Context, client *redis.Client, adminID int64) (*model.SessionOut, error) {
+	if adminID == 0 {
+		return nil, errors.ErrApiInvalidParam.New("adminID is empty")
+	}
+
+	oldSessionID, err := client.Get(ctx, newAdminUserSessionKey(adminID)).Result()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("failed to get session data, error: %w", err)
+	}
+
+	pipe := client.TxPipeline()
+	if oldSessionID != "" {
+		oldData, err := GetAdminSessionData(ctx, client, oldSessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get session data, error: %w", err)
+		}
+		if oldData != nil {
+			pipe.Del(ctx, newAdminRTKey(oldData.HashedRT))
+			pipe.Del(ctx, newAdminSessionKey(oldData.ID))
+			pipe.Del(ctx, newAdminUserSessionKey(oldData.UserID))
+			pipe.Del(ctx, newAdminCSRFKey(oldData.HashedCSRF))
+		}
+	}
+
+	sessionID, err := session.NewSessionID()
+	if err != nil {
+		return nil, err
+	}
+
+	at, tokenObj, err := session.NewJWT(config.Get().Session.JWTSecret).GenerateToken(adminID, sessionID, config.Get().Session.ATExpiration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token, err: %w", err)
+	}
+	claims, ok := tokenObj.Claims.(*session.JwtClaim)
+	if !ok {
+		return nil, fmt.Errorf("failed to assert token claims")
+	}
+
+	plainRT, hashedRT, err := session.NewOpaqueToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate opaque token, err: %w", err)
+	}
+	plainCSRF, hashedCSRF, err := session.NewOpaqueToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate opaque token, err: %w", err)
+	}
+
+	res := model.Session{
+		ID:     sessionID,
+		UserID: adminID,
+		AT:     at,
+	}
+	newStore := &model.SessionStore{
+		Session:    res,
+		HashedRT:   hashedRT,
+		HashedCSRF: hashedCSRF,
+	}
+
+	jsonData, err := json.Marshal(newStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal session data: %w", err)
+	}
+
+	pipe.Set(ctx, newAdminRTKey(hashedRT), sessionID, config.Get().Session.SessionExpiration)
+	pipe.Set(ctx, newAdminSessionKey(sessionID), jsonData, config.Get().Session.SessionExpiration)
+	pipe.Set(ctx, newAdminUserSessionKey(adminID), sessionID, config.Get().Session.SessionExpiration)
+	pipe.Set(ctx, newAdminCSRFKey(hashedCSRF), sessionID, config.Get().Session.SessionExpiration)
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create refresh token: %w", err)
+	}
+
+	return &model.SessionOut{
+		Session:     res,
+		RT:          plainRT,
+		CSRFToken:   plainCSRF,
+		ATExpiresAt: claims.ExpiresAt.Time,
+	}, nil
+}
+
+func VerifyAdminAccessToken(ctx context.Context, at string) (*session.JwtClaim, error) {
+	claims, err := session.NewJWT(config.Get().Session.JWTSecret).VerifyToken(at)
+	if err != nil {
+		return nil, err
+	}
+	if claims == nil {
+		return nil, nil
+	}
+
+	client, err := storage.GetRedis(config.RedisCert)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get redis: %w", err)
+	}
+
+	data, err := GetAdminSessionData(ctx, client, claims.Sid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session data: %w", err)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	return claims, nil
+}
+
+func RevokeAdminSessionByAdminID(ctx context.Context, client *redis.Client, adminID int64) error {
+	sessionID, err := client.Get(ctx, newAdminUserSessionKey(adminID)).Result()
+	if err != nil && err != redis.Nil {
+		return fmt.Errorf("failed to get admin session: %w", err)
+	}
+	if sessionID == "" {
+		return nil
+	}
+
+	dataStr, err := client.Get(ctx, newAdminSessionKey(sessionID)).Result()
+	if err != nil && err != redis.Nil {
+		return fmt.Errorf("failed to get session data: %w", err)
+	}
+
+	pipe := client.TxPipeline()
+	pipe.Del(ctx, newAdminUserSessionKey(adminID))
+	if dataStr != "" {
+		data := new(model.SessionStore)
+		if err := json.Unmarshal([]byte(dataStr), data); err != nil {
+			return fmt.Errorf("failed to unmarshal session data")
+		}
+		pipe.Del(ctx, newAdminSessionKey(data.ID))
+		pipe.Del(ctx, newAdminRTKey(data.HashedRT))
+		pipe.Del(ctx, newAdminCSRFKey(data.HashedCSRF))
+	}
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete refresh token: %w", err)
+	}
+	return nil
+}
+
+func GetAdminSessionIDByRT(ctx context.Context, client *redis.Client, rt string) (string, error) {
+	sessionID, err := client.Get(ctx, newAdminRTKey(hashing.Sha256([]byte(rt)))).Result()
+	if err != nil && err != redis.Nil {
+		return "", fmt.Errorf("failed to get session id: %w", err)
+	}
+	return sessionID, nil
+}
+
+func GetAdminSessionIDByCSRF(ctx context.Context, client *redis.Client, hashedCSRF string) (string, error) {
+	sessionID, err := client.Get(ctx, newAdminCSRFKey(hashedCSRF)).Result()
+	if err != nil && err != redis.Nil {
+		return "", fmt.Errorf("failed to get session id: %w", err)
+	}
+	return sessionID, nil
+}
+
+func GetAdminSessionData(ctx context.Context, client *redis.Client, sessionID string) (*model.SessionStore, error) {
+	dataStr, err := client.Get(ctx, newAdminSessionKey(sessionID)).Result()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("failed to get session data: %w", err)
+	}
 	if dataStr == "" {
 		return nil, nil
 	}

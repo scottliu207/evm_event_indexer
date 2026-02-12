@@ -29,3 +29,25 @@ func Authorization() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// AdminAuthorization validates admin authentication for protected routes.
+func AdminAuthorization() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		at := c.GetHeader("Authorization")
+		if at == "" {
+			c.Error(errors.ErrApiInvalidParam.New("access token is required"))
+			c.Abort()
+			return
+		}
+
+		adminID, err := service.VerifyAdminAT(c.Request.Context(), at)
+		if err != nil {
+			c.Error(err)
+			c.Abort()
+			return
+		}
+
+		c.Set(CtxAdminID, adminID)
+		c.Next()
+	}
+}

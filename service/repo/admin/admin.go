@@ -1,18 +1,18 @@
-package user
+package admin
 
 import (
 	"context"
 	"database/sql"
+
 	"evm_event_indexer/internal/enum"
 	"evm_event_indexer/service/model"
 
 	sq "github.com/Masterminds/squirrel"
 )
 
-// Insert user info into db
-func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, error) {
+func TxInsertAdmin(ctx context.Context, tx *sql.Tx, admin *model.Admin) (int64, error) {
 	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
-		Insert(model.TableNameUser).
+		Insert(model.TableNameAdmin).
 		Columns(
 			"account",
 			"status",
@@ -21,11 +21,11 @@ func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, err
 			"created_at",
 		).
 		Values(
-			user.Account,
-			user.Status,
-			user.Password,
-			user.AuthMeta,
-			user.CreatedAt,
+			admin.Account,
+			admin.Status,
+			admin.Password,
+			admin.AuthMeta,
+			admin.CreatedAt,
 		)
 
 	result, err := qb.RunWith(tx).ExecContext(ctx)
@@ -41,51 +41,46 @@ func TxInsertUser(ctx context.Context, tx *sql.Tx, user *model.User) (int64, err
 	return id, nil
 }
 
-// TxDeleteUser soft-deletes a user by setting status to disabled.
-func TxDeleteUser(ctx context.Context, tx *sql.Tx, userID int64) error {
+func TxUpdateAdmin(ctx context.Context, tx *sql.Tx, admin *model.Admin) error {
 	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
-		Update(model.TableNameUser).
-		Set("status", enum.UserStatusDisabled).
-		Where(sq.Eq{"id": userID})
+		Update(model.TableNameAdmin).
+		Where(sq.Eq{"id": admin.ID})
 
-	_, err := qb.RunWith(tx).ExecContext(ctx)
-	if err != nil {
-		return err
+	if admin.Account != "" {
+		qb = qb.Set("account", admin.Account)
 	}
-	return nil
-}
-
-// TxUpdateUser updates user fields by ID.
-func TxUpdateUser(ctx context.Context, tx *sql.Tx, user *model.User) error {
-	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
-		Update(model.TableNameUser).
-		Where(sq.Eq{"id": user.ID})
-
-	if user.Account != "" {
-		qb = qb.Set("account", user.Account)
+	if admin.Status != 0 {
+		qb = qb.Set("status", admin.Status)
 	}
-	if user.Status != 0 {
-		qb = qb.Set("status", user.Status)
+	if admin.Password != "" {
+		qb = qb.Set("password", admin.Password)
 	}
-	if user.Password != "" {
-		qb = qb.Set("password", user.Password)
-	}
-	if user.AuthMeta != nil {
-		qb = qb.Set("auth_meta", user.AuthMeta)
+	if admin.AuthMeta != nil {
+		qb = qb.Set("auth_meta", admin.AuthMeta)
 	}
 
 	_, err := qb.RunWith(tx).ExecContext(ctx)
 	return err
 }
 
-type GetUserFilter struct {
+func TxDeleteAdmin(ctx context.Context, tx *sql.Tx, adminID int64) error {
+	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
+		Update(model.TableNameAdmin).
+		Set("status", enum.UserStatusDisabled).
+		Where(sq.Eq{"id": adminID})
+
+	_, err := qb.RunWith(tx).ExecContext(ctx)
+	return err
+}
+
+type GetAdminFilter struct {
 	IDs        []int64
 	Accounts   []string
 	Status     enum.UserStatus
 	Pagination *model.Pagination
 }
 
-func (p GetUserFilter) ToWhere() sq.And {
+func (p GetAdminFilter) ToWhere() sq.And {
 	var conds sq.And
 	if len(p.IDs) > 0 {
 		conds = append(conds, sq.Eq{"id": p.IDs})
@@ -99,14 +94,14 @@ func (p GetUserFilter) ToWhere() sq.And {
 	return conds
 }
 
-func (p GetUserFilter) ToOrderBy() string {
+func (p GetAdminFilter) ToOrderBy() string {
 	return "id"
 }
 
-func GetUserTotal(ctx context.Context, db *sql.DB, filter *GetUserFilter) (int64, error) {
+func GetAdminTotal(ctx context.Context, db *sql.DB, filter *GetAdminFilter) (int64, error) {
 	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
 		Select("COUNT(*)").
-		From(model.TableNameUser).
+		From(model.TableNameAdmin).
 		Where(filter.ToWhere())
 
 	var total int64
@@ -117,7 +112,7 @@ func GetUserTotal(ctx context.Context, db *sql.DB, filter *GetUserFilter) (int64
 	return total, nil
 }
 
-func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) ([]*model.User, error) {
+func GetAdmins(ctx context.Context, db *sql.DB, filter *GetAdminFilter) ([]*model.Admin, error) {
 	qb := sq.StatementBuilder.PlaceholderFormat(sq.Question).
 		Select(
 			"id",
@@ -128,7 +123,7 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) ([]*model.
 			"created_at",
 			"updated_at",
 		).
-		From(model.TableNameUser).
+		From(model.TableNameAdmin).
 		Where(filter.ToWhere()).
 		OrderBy(filter.ToOrderBy())
 
@@ -142,21 +137,21 @@ func GetUsers(ctx context.Context, db *sql.DB, filter *GetUserFilter) ([]*model.
 	}
 	defer rows.Close()
 
-	res := make([]*model.User, 0)
+	res := make([]*model.Admin, 0)
 	for rows.Next() {
-		user := new(model.User)
+		admin := new(model.Admin)
 		if err := rows.Scan(
-			&user.ID,
-			&user.Account,
-			&user.Status,
-			&user.Password,
-			&user.AuthMeta,
-			&user.CreatedAt,
-			&user.UpdatedAt,
+			&admin.ID,
+			&admin.Account,
+			&admin.Status,
+			&admin.Password,
+			&admin.AuthMeta,
+			&admin.CreatedAt,
+			&admin.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		res = append(res, user)
+		res = append(res, admin)
 	}
 
 	return res, nil

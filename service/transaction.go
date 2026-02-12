@@ -6,6 +6,7 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/errors"
 	"evm_event_indexer/internal/storage"
+	"evm_event_indexer/internal/tools"
 	"evm_event_indexer/service/model"
 	"evm_event_indexer/service/repo/blocksync"
 	"evm_event_indexer/service/repo/eventlog"
@@ -49,7 +50,9 @@ func UpsertLog(ctx context.Context, params *UpsertLogParam) error {
 		return fmt.Errorf("failed to get mysql: %w", err)
 	}
 
-	if err := utils.NewTx(db).Exec(ctx,
+	start := time.Now()
+	defer tools.ObserveDBWrite("upsert_log", start, err)
+	if err = utils.NewTx(db).Exec(ctx,
 		// upsert the block sync record
 		func(ctx context.Context, tx *sql.Tx) error {
 			return blocksync.TxUpsertBlock(ctx, tx, &model.BlockSync{

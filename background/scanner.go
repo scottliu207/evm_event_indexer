@@ -5,6 +5,8 @@ import (
 	"evm_event_indexer/internal/config"
 	"evm_event_indexer/internal/decoder"
 	"evm_event_indexer/internal/eth"
+	"evm_event_indexer/internal/metrics"
+	"evm_event_indexer/internal/tools"
 	"evm_event_indexer/service"
 	"fmt"
 
@@ -59,17 +61,30 @@ func (s *Scanner) scan(ctx context.Context, client *eth.Client) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := s.syncLog(ctx, client); err != nil {
-				slog.Error("syncLog error",
-					slog.Any("error", err),
-					slog.String("address", s.Address),
-				)
-			}
+			func() {
+				start := time.Now()
+				var err error
+				synced, err := s.syncLog(ctx, client)
+				status := "success"
+				if !synced {
+					status = "noop"
+				}
+
+				if err != nil {
+					status = "failure"
+					slog.Error("syncLog error",
+						slog.Any("error", err),
+						slog.String("address", s.Address),
+					)
+				}
+
+				tools.ObserveScanBatch(client.GetChainID().String(), s.Address, start, status)
+			}()
 		}
 	}
 }
 
-func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
+func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) (bool, error) {
 
 	now := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, config.Get().Timeout)
@@ -79,7 +94,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	bc, err := service.GetBlockSync(ctx, client.GetChainID().Int64(), s.Address)
 	if err != nil {
-		return fmt.Errorf("get block sync status error: %w", err)
+		return false, fmt.Errorf("get block sync status error: %w", err)
 	}
 
 	if bc == nil {
@@ -96,7 +111,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 
 	latestBlock, err := client.GetBlockNumber()
 	if err != nil {
-		return fmt.Errorf("get current block number error for address %s: %w", s.Address, err)
+		return false, fmt.Errorf("get current block number error for address %s: %w", s.Address, err)
 	}
 
 	toBlock := min(syncBlock+uint64(s.BatchSize), latestBlock)
@@ -105,7 +120,7 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 			slog.Any("lastSyncNumber", bc.LastSyncNumber),
 			slog.Any("latestBlock", latestBlock),
 		)
-		return nil
+		return false, nil
 	}
 
 	eventLogs, err := client.GetLogs(eth.GetLogsParams{
@@ -115,12 +130,12 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 		Topics:    s.Topics,
 	})
 	if err != nil {
-		return fmt.Errorf("get logs error for address %s from block %d to %d: %w", s.Address, syncBlock, toBlock, err)
+		return false, fmt.Errorf("get logs error for address %s from block %d to %d: %w", s.Address, syncBlock, toBlock, err)
 	}
 
 	header, err := client.GetHeaderByNumber(toBlock)
 	if err != nil {
-		return fmt.Errorf("get block header error for block %d: %w", toBlock, err)
+		return false, fmt.Errorf("get block header error for block %d: %w", toBlock, err)
 	}
 
 	newSyncNumber := toBlock
@@ -179,8 +194,14 @@ func (s *Scanner) syncLog(ctx context.Context, client *eth.Client) error {
 	}
 
 	if err := service.UpsertLog(ctx, params); err != nil {
-		return fmt.Errorf("upsert log error for address %s: %w", s.Address, err)
+		return false, fmt.Errorf("upsert log error for address %s: %w", s.Address, err)
 	}
 
-	return nil
+	// matrics, latest block number
+	metrics.LatestSyncedBlock.WithLabelValues(client.GetChainID().String(), s.Address).Set(float64(toBlock))
+
+	// matrics, total logs indexed
+	metrics.TotalLogsIndexed.WithLabelValues(client.GetChainID().String(), s.Address).Add(float64(len(eventLogs)))
+
+	return true, nil
 }

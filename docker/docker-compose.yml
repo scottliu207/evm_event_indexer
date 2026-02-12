@@ -56,6 +56,11 @@ services:
       - TZ=UTC # default timezone 
       - WAIT_FOR_START=10s
       - LOG_LEVEL=debug
+      # api
+      - API_PORT=8080
+      - API_TIMEOUT=30s
+      # metrics
+      - METRICS_PORT=9090
       # session
       - SESSION_AT_EXPIRATION=15m
       - SESSION_SESSION_EXPIRATION=24h

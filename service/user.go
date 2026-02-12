@@ -280,5 +280,10 @@ func SoftDeleteUser(ctx context.Context, id int64) error {
 	if err != nil {
 		return errors.ErrInternalServerError.Wrap(err, "failed to delete user")
 	}
+
+	if err = RevokeUserSession(ctx, id); err != nil {
+		return err
+	}
+
 	return nil
 }

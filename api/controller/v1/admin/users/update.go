@@ -23,6 +23,11 @@ func Update(c *gin.Context) {
 	c.Set(middleware.CtxResponse, res)
 
 	var req UpdateReq
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.Error(err)
+		return
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(err)
 		return

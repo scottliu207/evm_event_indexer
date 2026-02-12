@@ -36,3 +36,30 @@ func CSRFProtection() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// AdminCSRFProtection validates CSRF token for admin requests.
+func AdminCSRFProtection() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rtCookie, err := c.Cookie(CookieNameAdminRefreshToken)
+		if err != nil || rtCookie == "" {
+			c.Error(errors.ErrInvalidCredentials.New("refresh token is empty"))
+			c.Abort()
+			return
+		}
+
+		sessionData, err := service.VerifyAdminCSRFToken(c.Request.Context(), c.GetHeader(HeaderNameCSRFToken))
+		if err != nil {
+			c.Error(err)
+			c.Abort()
+			return
+		}
+
+		if sessionData.HashedRT != hashing.Sha256([]byte(rtCookie)) {
+			c.Error(errors.ErrInvalidCredentials.New("invalid refresh token"))
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

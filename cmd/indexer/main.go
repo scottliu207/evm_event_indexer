@@ -17,6 +17,18 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+//	@title			EVM Event Indexer API
+//	@version		1.0
+//	@description	API server for EVM event log indexing and querying.
+
+//	@host		localhost:8080
+//	@BasePath	/api
+
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer access token (e.g. "Bearer eyJhbG...")
+
 func main() {
 	fmt.Println("starting to initialize infrastructure...")
 	initInfra()

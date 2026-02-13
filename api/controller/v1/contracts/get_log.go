@@ -55,6 +55,30 @@ type (
 )
 
 // GetLog retrieves event logs
+//
+//	@Summary		Query event logs
+//	@Description	Retrieve EVM event logs with flexible filtering by chain, address, block range, time range, topic signature, etc.
+//	@Tags			Transaction
+//	@Produce		json
+//	@Param			chain_id	query		int		false	"Chain ID"
+//	@Param			address		query		string	false	"Contract address (hex)"
+//	@Param			tx_hash		query		string	false	"Transaction hash"
+//	@Param			bn_start	query		int		false	"Block number range start"
+//	@Param			bn_end		query		int		false	"Block number range end"
+//	@Param			signature	query		string	false	"Event signature (32-byte hex, e.g. 0x...)"
+//	@Param			from		query		string	false	"From address or 32-byte hex topic"
+//	@Param			to			query		string	false	"To address or 32-byte hex topic"
+//	@Param			start_time	query		string	true	"Start time (RFC3339 format)"
+//	@Param			end_time	query		string	true	"End time (RFC3339 format)"
+//	@Param			order_by	query		int		false	"Order by field (default: 2 = block_number)"
+//	@Param			desc		query		bool	false	"Descending order"
+//	@Param			page		query		int		true	"Page number (min: 1)"
+//	@Param			size		query		int		true	"Page size (min: 1, max: 100)"
+//	@Success		200			{object}	protocol.Response{result=GetLogRes}
+//	@Failure		400			{object}	protocol.Response
+//	@Failure		401			{object}	protocol.Response
+//	@Security		BearerAuth
+//	@Router			/v1/txn/logs [get]
 func GetLog(c *gin.Context) {
 	res := new(GetLogRes)
 	res.Logs = make([]*EventLog, 0)

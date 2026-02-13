@@ -7,6 +7,8 @@ import (
 	adminUsersController "evm_event_indexer/api/controller/v1/admin/users"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"evm_event_indexer/api/controller/v1/contracts"
 	authController "evm_event_indexer/api/controller/v1/user/auth"
@@ -15,6 +17,9 @@ import (
 )
 
 func Routing(router *gin.Engine) {
+
+	// Swagger UI
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := router.Group("/api")
 	{

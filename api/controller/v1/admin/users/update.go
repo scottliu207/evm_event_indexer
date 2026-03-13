@@ -12,12 +12,27 @@ import (
 
 type (
 	UpdateReq struct {
-		UserID   int64           `uri:"user_id" binding:"required,min=1"`
+		UserID   int64           `uri:"user_id" json:"-" binding:"required,min=1"`
 		Password string          `json:"password" binding:"omitempty,min=8"`
 		Status   enum.UserStatus `json:"status" binding:"omitempty,oneof=1 2"`
 	}
 )
 
+// Update updates a user's password and/or status.
+//
+//	@Summary		Update user
+//	@Description	Update a user's password and/or status by ID (admin only).
+//	@Tags			Admin Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			user_id	path		int			true	"User ID"
+//	@Param			request	body		UpdateReq	true	"Fields to update"
+//	@Success		200		{object}	protocol.Response{result=GetRes}
+//	@Failure		400		{object}	protocol.Response
+//	@Failure		401		{object}	protocol.Response
+//	@Failure		404		{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/users/{user_id} [put]
 func Update(c *gin.Context) {
 	res := new(GetRes)
 	c.Set(middleware.CtxResponse, res)

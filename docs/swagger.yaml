@@ -1,0 +1,737 @@
+basePath: /api
+definitions:
+  api_controller_v1_admin_auth.LoginReq:
+    properties:
+      account:
+        maxLength: 50
+        type: string
+      password:
+        type: string
+    required:
+    - account
+    - password
+    type: object
+  api_controller_v1_admin_auth.LoginRes:
+    properties:
+      access_token:
+        type: string
+      csrf_token:
+        type: string
+      expires_at:
+        type: integer
+    type: object
+  api_controller_v1_admin_auth.LogoutRes:
+    type: object
+  api_controller_v1_admin_auth.RotateTokenRes:
+    properties:
+      access_token:
+        type: string
+      csrf_token:
+        type: string
+      expires_at:
+        type: integer
+    type: object
+  api_controller_v1_user_auth.LoginReq:
+    properties:
+      account:
+        maxLength: 50
+        type: string
+      password:
+        type: string
+    required:
+    - account
+    - password
+    type: object
+  api_controller_v1_user_auth.LoginRes:
+    properties:
+      access_token:
+        type: string
+      csrf_token:
+        type: string
+      expires_at:
+        description: timestamp of access token expiration
+        type: integer
+    type: object
+  api_controller_v1_user_auth.LogoutRes:
+    type: object
+  api_controller_v1_user_auth.RotateTokenRes:
+    properties:
+      access_token:
+        type: string
+      csrf_token:
+        type: string
+      expires_at:
+        description: timestamp of access token expiration
+        type: integer
+    type: object
+  contracts.EventLog:
+    properties:
+      address:
+        type: string
+      block_hash:
+        type: string
+      block_number:
+        type: integer
+      block_timestamp:
+        type: string
+      chain_id:
+        type: integer
+      data:
+        type: string
+      decoded_event:
+        $ref: '#/definitions/model.DecodedEvent'
+      id:
+        type: integer
+      log_index:
+        type: integer
+      topics:
+        items:
+          type: string
+        type: array
+      tx_hash:
+        type: string
+      tx_index:
+        type: integer
+    type: object
+  contracts.GetLogRes:
+    properties:
+      logs:
+        items:
+          $ref: '#/definitions/contracts.EventLog'
+        type: array
+      total:
+        type: integer
+    type: object
+  enum.UserStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - _
+    - UserStatusEnabled
+    - UserStatusDisabled
+  me.GetMeRes:
+    properties:
+      account:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  me.UpdateMeReq:
+    properties:
+      password:
+        minLength: 8
+        type: string
+    required:
+    - password
+    type: object
+  model.DecodedEvent:
+    properties:
+      event_data:
+        additionalProperties:
+          type: string
+        type: object
+      event_name:
+        type: string
+    type: object
+  protocol.Response:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+      result: {}
+    type: object
+  users.CreateReq:
+    properties:
+      account:
+        maxLength: 20
+        minLength: 3
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - account
+    - password
+    type: object
+  users.GetRes:
+    properties:
+      account:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/enum.UserStatus'
+      updated_at:
+        type: string
+    type: object
+  users.ListRes:
+    properties:
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/users.Row'
+        type: array
+    type: object
+  users.Row:
+    properties:
+      account:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/enum.UserStatus'
+      updated_at:
+        type: string
+    type: object
+  users.UpdateReq:
+    properties:
+      password:
+        minLength: 8
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/enum.UserStatus'
+        enum:
+        - 1
+        - 2
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API server for EVM event log indexing and querying.
+  title: EVM Event Indexer API
+  version: "1.0"
+paths:
+  /v1/admin/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate admin with account and password, returns access token
+        and sets refresh token cookie.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api_controller_v1_admin_auth.LoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_admin_auth.LoginRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      summary: Admin login
+      tags:
+      - Admin Auth
+  /v1/admin/auth/logout:
+    post:
+      description: Revoke admin session and delete refresh token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_admin_auth.LogoutRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: Admin logout
+      tags:
+      - Admin Auth
+  /v1/admin/auth/refresh:
+    post:
+      description: Rotate admin access and refresh tokens using the admin_refresh_token
+        cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_admin_auth.RotateTokenRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      summary: Refresh admin access token
+      tags:
+      - Admin Auth
+  /v1/admin/users:
+    get:
+      description: Get a paginated list of users with optional status filter (admin
+        only).
+      parameters:
+      - description: 'Page number (min: 1)'
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 'Page size (min: 1, max: 100)'
+        in: query
+        name: size
+        required: true
+        type: integer
+      - description: User status filter (1=enabled, 2=disabled)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/users.ListRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: List users
+      tags:
+      - Admin Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account (admin only).
+      parameters:
+      - description: User account and password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/users.CreateReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/users.GetRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: Create user
+      tags:
+      - Admin Users
+  /v1/admin/users/{user_id}:
+    delete:
+      description: Delete a user by ID (admin only).
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: Delete user
+      tags:
+      - Admin Users
+    get:
+      description: Get a single user by ID (admin only).
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/users.GetRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: Get user
+      tags:
+      - Admin Users
+    put:
+      consumes:
+      - application/json
+      description: Update a user's password and/or status by ID (admin only).
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/users.UpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/users.GetRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - AdminBearerAuth: []
+      summary: Update user
+      tags:
+      - Admin Users
+  /v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with account and password, returns access token
+        in body and sets refresh token in cookie.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api_controller_v1_user_auth.LoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_user_auth.LoginRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      summary: User login
+      tags:
+      - Auth
+  /v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revoke user session and delete refresh token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_user_auth.LogoutRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - BearerAuth: []
+      summary: User logout
+      tags:
+      - Auth
+  /v1/auth/refresh:
+    post:
+      description: Rotate access and refresh tokens using the refresh_token cookie.
+        Returns new tokens and sets a new refresh_token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/api_controller_v1_user_auth.RotateTokenRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      summary: Refresh access token
+      tags:
+      - Auth
+  /v1/txn/logs:
+    get:
+      description: Retrieve EVM event logs with flexible filtering by chain, address,
+        block range, time range, topic signature, etc.
+      parameters:
+      - description: Chain ID
+        in: query
+        name: chain_id
+        type: integer
+      - description: Contract address (hex)
+        in: query
+        name: address
+        type: string
+      - description: Transaction hash
+        in: query
+        name: tx_hash
+        type: string
+      - description: Block number range start
+        in: query
+        name: bn_start
+        type: integer
+      - description: Block number range end
+        in: query
+        name: bn_end
+        type: integer
+      - description: Event signature (32-byte hex, e.g. 0x...)
+        in: query
+        name: signature
+        type: string
+      - description: From address or 32-byte hex topic
+        in: query
+        name: from
+        type: string
+      - description: To address or 32-byte hex topic
+        in: query
+        name: to
+        type: string
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        required: true
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        required: true
+        type: string
+      - description: 'Order by field (default: 2 = block_number)'
+        in: query
+        name: order_by
+        type: integer
+      - description: Descending order
+        in: query
+        name: desc
+        type: boolean
+      - description: 'Page number (min: 1)'
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 'Page size (min: 1, max: 100)'
+        in: query
+        name: size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/contracts.GetLogRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - BearerAuth: []
+      summary: Query event logs
+      tags:
+      - Transaction
+  /v1/user/me:
+    get:
+      description: Returns the profile of the currently authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/me.GetMeRes'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: Update the password of the currently authenticated user.
+      parameters:
+      - description: Update fields
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/me.UpdateMeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/protocol.Response'
+            - properties:
+                result:
+                  $ref: '#/definitions/me.GetMeRes'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/protocol.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/protocol.Response'
+      security:
+      - BearerAuth: []
+      summary: Update current user
+      tags:
+      - User
+securityDefinitions:
+  AdminBearerAuth:
+    description: Admin bearer access token (e.g. "Bearer eyJhbG...")
+    in: header
+    name: Authorization
+    type: apiKey
+  BearerAuth:
+    description: User bearer access token (e.g. "Bearer eyJhbG...")
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

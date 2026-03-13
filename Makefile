@@ -63,6 +63,7 @@ transfer:
 		1000000000000000000
 
 # generate swagger docs
-.PHONY: docs
+.PHONY: swagger docs
+swagger: docs
 docs:
 	swag init -g cmd/indexer/main.go -o docs --parseInternal -d .

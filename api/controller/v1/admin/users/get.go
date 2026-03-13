@@ -25,6 +25,18 @@ type (
 	}
 )
 
+// Get returns a single user by ID.
+//
+//	@Summary		Get user
+//	@Description	Get a single user by ID (admin only).
+//	@Tags			Admin Users
+//	@Produce		json
+//	@Param			user_id	path		int	true	"User ID"
+//	@Success		200		{object}	protocol.Response{result=GetRes}
+//	@Failure		401		{object}	protocol.Response
+//	@Failure		404		{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/users/{user_id} [get]
 func Get(c *gin.Context) {
 	res := new(GetRes)
 	c.Set(middleware.CtxResponse, res)

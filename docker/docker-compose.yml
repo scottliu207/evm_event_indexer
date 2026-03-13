@@ -59,6 +59,7 @@ services:
       # api
       - API_PORT=8080
       - API_TIMEOUT=30s
+      - API_ENABLE_SWAGGER=true
       # metrics
       - METRICS_PORT=9090
       # session

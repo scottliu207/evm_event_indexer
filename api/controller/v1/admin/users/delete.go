@@ -14,6 +14,18 @@ type (
 	}
 )
 
+// Delete removes a user by ID.
+//
+//	@Summary		Delete user
+//	@Description	Delete a user by ID (admin only).
+//	@Tags			Admin Users
+//	@Produce		json
+//	@Param			user_id	path	int	true	"User ID"
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	protocol.Response
+//	@Failure		404		{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/users/{user_id} [delete]
 func Delete(c *gin.Context) {
 
 	var req = new(DeleteReq)

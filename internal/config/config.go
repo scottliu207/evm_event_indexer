@@ -30,8 +30,9 @@ type Config struct {
 	Backoff            time.Duration `yaml:"backoff"`
 	MaxBackoff         time.Duration `yaml:"max_backoff"`
 	API                struct {
-		Port    string        `yaml:"port"`
-		Timeout time.Duration `yaml:"timeout"`
+		Port          string        `yaml:"port"`
+		Timeout       time.Duration `yaml:"timeout"`
+		EnableSwagger bool          `yaml:"enable_swagger"`
 	}
 	Metrics struct {
 		Port string `yaml:"port"`

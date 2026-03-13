@@ -17,6 +17,20 @@ type (
 	}
 )
 
+// Create creates a new user account.
+//
+//	@Summary		Create user
+//	@Description	Create a new user account (admin only).
+//	@Tags			Admin Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		CreateReq	true	"User account and password"
+//	@Success		201		{object}	protocol.Response{result=GetRes}
+//	@Failure		400		{object}	protocol.Response
+//	@Failure		401		{object}	protocol.Response
+//	@Failure		409		{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/users [post]
 func Create(c *gin.Context) {
 	res := new(GetRes)
 	c.Set(middleware.CtxResponse, res)

@@ -24,6 +24,18 @@ type (
 	}
 )
 
+// Login authenticates an admin and returns access token in body and sets refresh token in cookie.
+//
+//	@Summary		Admin login
+//	@Description	Authenticate admin with account and password, returns access token and sets refresh token cookie.
+//	@Tags			Admin Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		LoginReq	true	"Login credentials"
+//	@Success		200		{object}	protocol.Response{result=LoginRes}
+//	@Failure		400		{object}	protocol.Response
+//	@Failure		401		{object}	protocol.Response
+//	@Router			/v1/admin/auth/login [post]
 func Login(c *gin.Context) {
 	res := new(LoginRes)
 	c.Set(middleware.CtxResponse, res)

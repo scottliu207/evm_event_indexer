@@ -10,6 +10,16 @@ import (
 
 type LogoutRes struct{}
 
+// Logout revokes the admin session and deletes the refresh token cookie.
+//
+//	@Summary		Admin logout
+//	@Description	Revoke admin session and delete refresh token cookie.
+//	@Tags			Admin Auth
+//	@Produce		json
+//	@Success		200	{object}	protocol.Response{result=LogoutRes}
+//	@Failure		401	{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/auth/logout [post]
 func Logout(c *gin.Context) {
 	res := new(LogoutRes)
 	c.Set(middleware.CtxResponse, res)

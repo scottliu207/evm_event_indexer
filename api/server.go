@@ -8,6 +8,8 @@ import (
 	_ "evm_event_indexer/docs" // swagger generated docs
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // NewServer creates a new HTTP server
@@ -23,6 +25,11 @@ func NewServer() *http.Server {
 	router.Use(middleware.CORS(middleware.Options{
 		AllowCredentials: true,
 	}))
+
+	// register swagger UI before timeout/response middleware to avoid Content-Length conflict
+	if cnf.API.EnableSwagger {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// handle unexpected request
 	router.NoMethod(middleware.NotFoundHandler)

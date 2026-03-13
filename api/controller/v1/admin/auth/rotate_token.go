@@ -17,6 +17,15 @@ type RotateTokenRes struct {
 	CSRFToken   string `json:"csrf_token"`
 }
 
+// RotateToken rotates the admin access token and refresh token.
+//
+//	@Summary		Refresh admin access token
+//	@Description	Rotate admin access and refresh tokens using the admin_refresh_token cookie.
+//	@Tags			Admin Auth
+//	@Produce		json
+//	@Success		200	{object}	protocol.Response{result=RotateTokenRes}
+//	@Failure		401	{object}	protocol.Response
+//	@Router			/v1/admin/auth/refresh [post]
 func RotateToken(c *gin.Context) {
 	res := new(RotateTokenRes)
 	c.Set(middleware.CtxResponse, res)

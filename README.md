@@ -1,169 +1,237 @@
 # Simple EVM Event Indexer
 
-A Go-based EVM event (log) indexer: scan/subscribe contract events based on configuration, persist to MySQL, and expose a query API.
+Go service that indexes EVM logs from configured contracts, stores them in MySQL, tracks session/auth state in Redis, and exposes query/admin APIs via Gin.
 
 ## Features
 
-- **Indexing**: Scan/subscribe event logs by contract address + topics
-- **Reorg**:  Handles chain reorganizations with a configurable reorg window and reprocesses affected logs
-- **Storage**: MySQL for logs + sync state; Redis for storing token
-- **API**: Gin HTTP API (logs query)
-- **Auth**: Access Token (JWT) + Refresh Token (cookie) + CSRF protection
+- Event indexing by contract address + topics (`scanner*.json` driven).
+- Background workers: API server, metrics server, scanner, subscription, reorg consumer.
+- Reorg handling for removed logs with checkpoint rollback.
+- JWT access token + opaque refresh token + CSRF protection for refresh endpoints.
+- Admin and user auth flows with session revocation in Redis.
+- Swagger/OpenAPI docs via `swaggo`.
+- Prometheus metrics at `/metrics`.
 
 ## Requirements
 
 - Go `1.25.5`
-- Docker + Docker Compose (recommended for local MySQL / Redis / Anvil)
+- Docker + Docker Compose (recommended)
+- For optional tasks:
+  - Swagger generation: `swag`
+  - Contract flow: `forge`, `jq`, `abigen`
 
 ## Project Layout
 
-```
+```text
 .
-├── api/                 # HTTP server + routes + middleware
-├── background/          # background workers (scanner/subscription/api server)
-├── cmd/indexer/         # application entrypoint
-├── config/              # config.yaml + scanner*.json
-├── contracts/           # foundry contracts (example ERC20)
-├── docker/              # docker-compose + MySQL init schema
-├── internal/            # internal packages (config/session/storage/decoder/...)
-├── service/             # service layer + repos
-└── utils/               # helpers
+├── api/                 # HTTP handlers, middleware, routes
+├── background/          # workers (api, metrics, scanner, subscription, reorg)
+├── cmd/indexer/         # entrypoint + global Swagger annotations
+├── config/              # config.yaml + scanner JSON files
+├── docker/              # compose + DB bootstrap scripts/schema
+├── docs/                # generated Swagger docs
+├── internal/            # config/storage/session/decoder/eth/metrics
+├── service/             # business logic + repositories
+└── utils/               # shared utilities
 ```
 
 ## Quick Start (Docker)
 
-1. Start MySQL / Redis / Anvil / indexer
+Start full stack (MySQL, Redis, Anvil, indexer):
 
 ```bash
 ./run.sh up
 ```
 
-Options:
+Useful flags:
 
 ```bash
---purge   # reset data (remove volumes before up)
---infra   # start only infra (mysql, redis, anvil)
+./run.sh up --infra   # only mysql, redis, anvil
+./run.sh up --purge   # reset volumes before start
 ```
 
-2. Stop services
+Stop:
 
 ```bash
 ./run.sh down
+./run.sh down --purge
 ```
 
-Options:
+Default local URLs (compose):
 
-```bash
---purge   # remove volumes
-```
+- API: `http://localhost:8080`
+- Swagger (enabled in compose): `http://localhost:8080/swagger/index.html`
+- Metrics: `http://localhost:9090/metrics`
+- MySQL: `127.0.0.1:3306`
+- Redis: `127.0.0.1:6379`
+- Anvil: `127.0.0.1:8545`
 
 ## Run Locally (Non-Docker)
+
+1. Bring up infra (MySQL, Redis, Anvil), for example:
+
+```bash
+./run.sh up --infra
+```
+
+2. Run indexer:
+
 ```bash
 make run
 ```
 
+`make run` executes `go run cmd/indexer/main.go` and loads `./config/config.yaml`.
+
 ## Configuration
 
-### Main config (`config/config.yaml`)
+Main config: `config/config.yaml`
 
-- Main config file: `config/config.yaml`
-- Scanner JSON path: `scanner_path` (e.g. `./config/scanner.json`)
-- Viper reads environment variables to override YAML (e.g. `SESSION_JWT_SECRET`)
+- App settings: `start_block`, `log_scanner_interval`, `reorg_window`, retry/backoff, timeouts.
+- API settings under `api`: `port`, `timeout`, `enable_swagger`.
+- DB settings under `mysql`/`redis`.
+- Scanner file path: `scanner_path`.
 
-Common environment variables (see `docker/docker-compose.yml` for the full set):
+Environment variables override YAML via Viper (`.` -> `_`), for example:
 
 - `API_PORT`
+- `API_ENABLE_SWAGGER`
 - `SCANNER_PATH`
 - `SESSION_JWT_SECRET`
 - `SESSION_CSRF_SECRET`
 - `MYSQL_DATABASES_*`
 - `REDIS_DATABASES_*`
 
-### Scanner config (`config/scanner*.json`)
+Scanner config files:
 
-- `config/scanner.json`: scanner config for local runs
-- `config/scanner.docker.json`: scanner config used by Docker compose (via `SCANNER_PATH`)
+- `config/scanner.json` (local)
+- `config/scanner.docker.json` (compose)
 
-Scanner JSON key fields:
+`topics[]` in scanner config are event signatures (e.g. `Transfer(address,address,uint256)`); the service hashes them to topic0 via `keccak256` internally.
 
-- `rpc_http` / `rpc_ws`
-- `batch_size`
-- `addresses[]`:
-  - `address`: contract address
-  - `topics[]`: event signatures (strings); the indexer hashes them with `keccak256` as topic0
+## Indexing and Reorg Behavior
 
-## Scanner
+- Scanner worker periodically fetches logs in batches and upserts:
+  - `event_db.event_log`
+  - `event_db.block_sync`
+- Subscription worker listens for removed logs (`log.Removed == true`) and pushes reorg tasks.
+- Reorg consumer rolls back from a discovered checkpoint and deletes logs after that checkpoint.
+- If no checkpoint is found within the fallback window, it falls back to `start_block`.
 
-- **Modes**: scan (historical backfill) and subscribe (live logs).
-- **Flow**: read `scanner*.json` → fetch logs by `addresses/topics` → decode → persist to MySQL.
-- **Batching**: `batch_size` controls log fetch size; larger batches improve throughput but increase RPC/DB load.
+## API Overview
 
-## Reorg
+Base path: `/api`
 
-- **Window**: configurable `reorg_window` (e.g. 12 blocks).
-- **Behavior**: each sync re-reads the last `reorg_window` blocks and overwrites affected logs to keep canonical state.
-- **Limit**: reorgs deeper than the window require a manual rescan.
+Common response envelope:
 
-## API
+```json
+{
+  "code": 0,
+  "message": "success",
+  "result": {}
+}
+```
 
-- `GET /api/status`: health check
-- `POST /api/v1/auth/login`: login, returns `access_token` and `csrf_token` and sets cookies (`refresh_token`)
-- `POST /api/v1/auth/refresh`: rotate access/refresh/csrf token (cookie-based; requires CSRF)
-- `POST /api/v1/auth/logout`: logout, deletes refresh token (requires `Authorization: Bearer <access_token>`)
-- `GET /api/v1/txn/logs`: query event logs (requires `Authorization: Bearer <access_token>`)
+### Endpoints
 
-## Auth
+Health:
 
-- Access token is sent via `Authorization: Bearer <access_token>`.
-- Refresh token is stored in an HttpOnly cookie (`refresh_token`).
-- CSRF token is returned in JSON and must be echoed in the `X-CSRF-Token` header for refresh/logout.
+- `GET /api/status`
 
+User auth:
 
-### Cookies
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh` (requires `refresh_token` cookie + `X-CSRF-Token`)
+- `POST /api/v1/auth/logout` (requires `Authorization`)
 
-- `refresh_token`: `HttpOnly` + `Secure` (not readable by browser JS)
+User:
 
-### Flow
+- `GET /api/v1/user/me` (requires `Authorization`)
+- `PUT /api/v1/user/me` (requires `Authorization`)
 
-1. `POST /api/v1/auth/login`
-   - Response JSON: `access_token`, `csrf_token`
-   - Response cookies: `refresh_token`
-2. `POST /api/v1/auth/refresh` / `POST /api/v1/auth/logout`
-   - Browser must send cookies: `fetch(..., { credentials: "include" })` (or axios `withCredentials: true`)
-   - Must include header: `X-CSRF-Token: <csrf_token>`
-     - `<csrf_token>` comes from the login/refresh JSON response
+Admin auth:
 
-## Database Schema
+- `POST /api/v1/admin/auth/login`
+- `POST /api/v1/admin/auth/refresh` (requires `admin_refresh_token` cookie + `X-CSRF-Token`)
+- `POST /api/v1/admin/auth/logout` (requires `Authorization`)
 
-MySQL schema is initialized by `docker/db/schema/*.sql`:
+Admin users:
 
-- `docker/db/schema/event_db.sql`:
-  - `event_log`: event logs (`chain_id`, `topic_0..3`, `decoded_event`, `block_timestamp`)
-  - `block_sync`: sync state (primary key: `(chain_id, address)`)
-- `docker/db/schema/account_db.sql`:
-  - `user`: login accounts (argon2 hash + `auth_meta`)
+- `POST /api/v1/admin/users`
+- `GET /api/v1/admin/users`
+- `GET /api/v1/admin/users/:user_id`
+- `PUT /api/v1/admin/users/:user_id`
+- `DELETE /api/v1/admin/users/:user_id`
+
+Transactions:
+
+- `GET /api/v1/txn/logs` (`start_time`, `end_time`, `page`, `size` are required query params)
+
+### Auth Notes
+
+- `Authorization` header accepts `Bearer <token>` (and also tolerates raw token).
+- Cookie names:
+  - user refresh token: `refresh_token`
+  - admin refresh token: `admin_refresh_token`
+- CSRF header: `X-CSRF-Token`
+- Refresh cookies are set `HttpOnly` + `Secure`.
+
+## Swagger
+
+Swagger UI is served only when enabled:
+
+- Config key: `api.enable_swagger`
+- Env override: `API_ENABLE_SWAGGER`
+
+Current defaults:
+
+- `config/config.yaml`: `api.enable_swagger: false`
+- `docker/docker-compose.yml`: `API_ENABLE_SWAGGER=true` for `indexer`
+
+Regenerate docs after annotation changes:
+
+```bash
+make swagger
+```
+
+(`make swagger` runs `swag init -g cmd/indexer/main.go -o docs --parseInternal -d .`)
+
+## Database
+
+Schema files:
+
+- `docker/db/schema/event_db.sql`
+  - `event_log`
+  - `block_sync`
+- `docker/db/schema/account_db.sql`
+  - `user`
+  - `admin`
+
+DB init order in MySQL container is handled by `docker/db/00-run.sh` (runs all `schema/*` then `init/*`).
+
+Seed data:
+
+- `docker/db/init/local.sql` inserts an initial admin row into `account_db.admin`.
 
 ## Development
 
-### Tests
+Run tests:
 
 ```bash
 go test ./...
 ```
 
-Local test api credentials:
-- account: `root`
-- password: `root`
+Test notes:
 
-### Contract bindings
+- API integration tests use `config/config.yaml` and expect MySQL/Redis reachable per config.
+- Tests create their own temporary user records; do not rely on a fixed `root/root` test account.
 
-Requires `forge`, `jq`, and `abigen`:
+Generate contract bindings:
 
 ```bash
 make gen
 ```
 
-### Deploy / Transfer (Anvil in Docker)
+Deploy sample contract / send transfer on Anvil (Docker network `indexer-network`):
 
 ```bash
 make deploy

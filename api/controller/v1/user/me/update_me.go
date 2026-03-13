@@ -17,6 +17,18 @@ type (
 )
 
 // UpdateMe updates current authenticated user's account and/or password.
+//
+//	@Summary		Update current user
+//	@Description	Update the password of the currently authenticated user.
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		UpdateMeReq	true	"Update fields"
+//	@Success		200		{object}	protocol.Response{result=GetMeRes}
+//	@Failure		400		{object}	protocol.Response
+//	@Failure		401		{object}	protocol.Response
+//	@Security		BearerAuth
+//	@Router			/v1/user/me [put]
 func UpdateMe(c *gin.Context) {
 	res := new(GetMeRes)
 	c.Set(middleware.CtxResponse, res)

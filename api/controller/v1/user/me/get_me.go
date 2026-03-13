@@ -19,6 +19,15 @@ type GetMeRes struct {
 }
 
 // GetMe returns the current authenticated user profile.
+//
+//	@Summary		Get current user profile
+//	@Description	Returns the profile of the currently authenticated user.
+//	@Tags			User
+//	@Produce		json
+//	@Success		200	{object}	protocol.Response{result=GetMeRes}
+//	@Failure		401	{object}	protocol.Response
+//	@Security		BearerAuth
+//	@Router			/v1/user/me [get]
 func GetMe(c *gin.Context) {
 	res := new(GetMeRes)
 	c.Set(middleware.CtxResponse, res)

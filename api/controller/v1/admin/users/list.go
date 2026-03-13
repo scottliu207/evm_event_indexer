@@ -34,6 +34,20 @@ type (
 	}
 )
 
+// List returns a paginated list of users.
+//
+//	@Summary		List users
+//	@Description	Get a paginated list of users with optional status filter (admin only).
+//	@Tags			Admin Users
+//	@Produce		json
+//	@Param			page	query		int	true	"Page number (min: 1)"
+//	@Param			size	query		int	true	"Page size (min: 1, max: 100)"
+//	@Param			status	query		int	false	"User status filter (1=enabled, 2=disabled)"
+//	@Success		200		{object}	protocol.Response{result=ListRes}
+//	@Failure		400		{object}	protocol.Response
+//	@Failure		401		{object}	protocol.Response
+//	@Security		AdminBearerAuth
+//	@Router			/v1/admin/users [get]
 func List(c *gin.Context) {
 	res := &ListRes{
 		Users: make([]Row, 0),

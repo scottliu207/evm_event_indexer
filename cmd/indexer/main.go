@@ -27,7 +27,12 @@ import (
 //	@securityDefinitions.apikey	BearerAuth
 //	@in							header
 //	@name						Authorization
-//	@description				Bearer access token (e.g. "Bearer eyJhbG...")
+//	@description				User bearer access token (e.g. "Bearer eyJhbG...")
+
+//	@securityDefinitions.apikey	AdminBearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Admin bearer access token (e.g. "Bearer eyJhbG...")
 
 func main() {
 	fmt.Println("starting to initialize infrastructure...")
